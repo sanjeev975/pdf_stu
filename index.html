@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Section Crop Studio - Hardware Secure Vault</title>
   
-  <!-- Vercel Web Analytics for Plain HTML Sites (No npm/React required) -->
+  <!-- Vercel Web Analytics for Plain HTML Sites -->
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
@@ -40,7 +40,6 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
   <style>
-    /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
@@ -100,32 +99,50 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
   <!-- ========================================================================= -->
-  <!-- HARDWARE WEBAUTHN & CRYPTOGRAPHIC SHIELD SCREEN                           -->
-  <!-- Supports Windows Hello, Touch ID, Security Keys, or Fallback PIN          -->
+  <!-- HARDWARE WEBAUTHN SHIELD SCREEN                                           -->
   <!-- ========================================================================= -->
   <div id="cryptoShield" class="fixed inset-0 bg-slate-950 z-[100] flex items-center justify-center p-4">
-    <!-- Ambient glowing backdrops -->
     <div class="absolute -top-32 -right-32 w-80 h-80 bg-brand-600/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"></div>
     <div class="absolute -bottom-32 -left-32 w-80 h-80 bg-indigo-600/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"></div>
 
     <div class="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-9 max-w-md w-full shadow-2xl relative backdrop-blur-xl">
       <div class="text-center">
-        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center text-2xl shadow-xl shadow-brand-500/25">
+        <div id="shieldIconContainer" class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center text-2xl shadow-xl shadow-brand-500/25">
           <i class="fa-solid fa-fingerprint"></i>
         </div>
 
         <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-semibold mb-3">
           <i class="fa-solid fa-shield-halved"></i>
-          <span id="shieldSecurityLabel">Hardware-Bound Access Control</span>
+          <span id="shieldSecurityLabel">Strict Hardware Lockdown</span>
         </div>
 
         <h2 id="shieldHeading" class="text-xl sm:text-2xl font-bold text-white mb-2 tracking-tight">Authorized PC Verification</h2>
         <p id="shieldSubheading" class="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
-          Verify physical identity using Windows Hello, Touch ID, or registered hardware passkey on this machine.
+          Access is strictly restricted to authorized workstations. Hardware biometric challenge required.
         </p>
 
-        <!-- Passkey Hardware Button (Primary) -->
-        <div id="passkeySection" class="space-y-3 mb-5">
+        <!-- Blocked Device Alert (shows if on mobile or foreign device) -->
+        <div id="deviceBlockedNotice" class="hidden text-xs text-rose-300 bg-rose-500/15 border border-rose-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
+          <div class="font-bold flex items-center gap-2 text-rose-400">
+            <i class="fa-solid fa-ban"></i> Access Denied: Unauthorized Device
+          </div>
+          <p id="deviceBlockedReason" class="text-[11px] text-slate-300 leading-normal">
+            This machine or mobile device does not contain the master hardware encryption key.
+          </p>
+        </div>
+
+        <!-- Single-Use Activation Badge (if valid token detected in URL) -->
+        <div id="invitationDetectedBanner" class="hidden text-xs text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
+          <div class="font-bold flex items-center gap-2 text-emerald-400">
+            <i class="fa-solid fa-key"></i> Single-Use Activation Key Valid
+          </div>
+          <p class="text-[11px] text-slate-300 leading-normal">
+            Click the button below to register this PC. This activation link will permanently expire after registration.
+          </p>
+        </div>
+
+        <!-- Passkey Hardware Button -->
+        <div id="passkeySection" class="space-y-3 mb-4">
           <button 
             type="button" 
             id="passkeyAuthBtn"
@@ -135,74 +152,36 @@
             <span id="passkeyBtnText">Unlock with Windows Hello / Touch ID</span>
           </button>
 
-          <!-- Register this device prompt (Hidden automatically once locked to your PC) -->
+          <!-- Appears ONLY when valid activation link is visited OR if no device registered yet -->
           <button 
             type="button" 
             id="enrollDeviceBtn"
-            class="hidden w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-800 border border-brand-500/40 text-brand-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+            class="hidden w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20"
           >
             <i class="fa-solid fa-laptop-medical"></i>
-            <span>Register this PC as Authorized Device</span>
+            <span>Register & Authorize This PC</span>
           </button>
         </div>
 
-        <!-- Divider to PIN Fallback -->
-        <div class="relative flex py-2 items-center">
-          <div class="flex-grow border-t border-slate-800"></div>
-          <span class="flex-shrink mx-3 text-[11px] text-slate-500 font-mono uppercase tracking-widest">Or Use Passcode</span>
-          <div class="flex-grow border-t border-slate-800"></div>
+        <div id="cryptoError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center justify-center gap-2 mb-3">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="cryptoErrorText">Hardware verification rejected.</span>
         </div>
 
-        <!-- Passcode Form -->
-        <form id="cryptoUnlockForm" class="space-y-4 mt-3">
-          <div class="relative">
-            <input 
-              type="password" 
-              id="passcodeInput" 
-              autocomplete="current-password"
-              placeholder="Enter PIN" 
-              class="w-full bg-slate-950/80 border border-slate-700 text-center tracking-[0.25em] text-lg font-mono text-white rounded-2xl px-4 py-3 focus:outline-none focus:border-brand-500 transition shadow-inner"
-              required
-            >
-            <button 
-              type="button" 
-              id="toggleKeyVisibility" 
-              class="absolute right-3.5 top-3 text-slate-400 hover:text-slate-200 transition p-1"
-              title="Show/Hide Passcode"
-            >
-              <i class="fa-regular fa-eye text-sm"></i>
-            </button>
-          </div>
-
-          <div id="cryptoError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center justify-center gap-2">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <span id="cryptoErrorText">Hardware authentication or PIN failed.</span>
-          </div>
-
-          <button 
-            type="submit" 
-            id="unlockBtn"
-            class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-2 active:scale-[0.98]"
-          >
-            <i class="fa-solid fa-key text-xs"></i>
-            <span>Unlock via PIN</span>
-          </button>
-        </form>
-
-        <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+        <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
           <span id="deviceRegistrationBadge" class="flex items-center gap-1.5 text-slate-400">
-            <i class="fa-solid fa-circle-question text-amber-400"></i> No Device Enrolled
+            <i class="fa-solid fa-lock text-emerald-400"></i> Hardware Lock Active
           </span>
-          <button id="resetEnrollmentBtn" type="button" class="text-[10px] text-slate-500 hover:text-rose-400 transition underline">
-            Reset Device Key
-          </button>
+          <span class="text-[10px] text-slate-500 font-mono">v5.0-invite-auth</span>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- MAIN APPLICATION                                                          -->
+  <!-- ========================================================================= -->
   <div id="appContainer" class="hidden flex-1 flex flex-col min-h-screen">
-    
     <!-- HEADER -->
     <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-3">
@@ -212,11 +191,11 @@
         <div>
           <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
             PDF Precision Crop Studio 
-            <span id="headerHardwareBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-              <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Protected
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified
             </span>
           </h1>
-          <p class="text-xs text-slate-400 hidden sm:block">Zero-Knowledge Offline &bull; Drag Handles &bull; Content-Only Mode</p>
+          <p class="text-xs text-slate-400 hidden sm:block">Zero-Knowledge Offline &bull; Draggable Bounds &bull; Content-Only Mode</p>
         </div>
       </div>
 
@@ -232,14 +211,13 @@
           <i class="fa-solid fa-arrow-rotate-left"></i> Change PDF
         </button>
 
-        <!-- Manage / Change PIN Modal Trigger -->
-        <button id="managePinBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5" title="Change your secret access code">
-          <i class="fa-solid fa-key text-brand-400"></i>
-          <span class="hidden md:inline">Change Passcode</span>
+        <!-- Generate 1-Time Invite Link Button (Admin Tool) -->
+        <button id="openInviteModalBtn" class="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 px-3 py-1.5 rounded-lg border border-indigo-500/30 transition flex items-center gap-1.5" title="Generate a one-time activation link to authorize another PC">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Create 1-Time Link</span>
         </button>
 
-        <!-- Re-Lock Studio Button -->
-        <button id="lockWorkspaceBtn" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5" title="Lock Studio and destroy browser decryption session">
+        <button id="lockWorkspaceBtn" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5" title="Lock Studio and destroy current browser session">
           <i class="fa-solid fa-lock"></i>
           <span>Lock</span>
         </button>
@@ -248,7 +226,6 @@
 
     <!-- MAIN BODY -->
     <main class="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-7xl w-full mx-auto p-3 sm:p-5 gap-5">
-
       <!-- UPLOAD HERO STATE -->
       <section id="uploadSection" class="flex-1 flex flex-col justify-center items-center py-10">
         <div id="dropZone" class="w-full max-w-2xl bg-slate-900/50 hover:bg-slate-900/90 border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all duration-300 shadow-2xl relative group">
@@ -272,7 +249,7 @@
               <div class="text-brand-400 font-semibold text-xs flex items-center gap-1.5 mb-1">
                 <i class="fa-solid fa-up-down"></i> Draggable Bounds
               </div>
-              <p class="text-[11px] text-slate-400">Click & drag boundary handles directly on the preview to adjust Section 3 exact cut.</p>
+              <p class="text-[11px] text-slate-400">Click & drag boundary handles directly on the preview to adjust Section 3 cut.</p>
             </div>
             <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800">
               <div class="text-emerald-400 font-semibold text-xs flex items-center gap-1.5 mb-1">
@@ -291,13 +268,9 @@
       </section>
 
       <div id="workspaceSection" class="hidden flex-1 flex flex-col lg:flex-row gap-5 h-[calc(100vh-6.2rem)] overflow-hidden">
-        
-        <!-- PREVIEW PANEL (Left / Center) -->
+        <!-- PREVIEW PANEL -->
         <section class="flex-1 flex flex-col bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden shadow-xl min-w-0">
-          
-          <!-- Preview Toolbar -->
           <div class="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <!-- Page Navigation -->
             <div class="flex items-center space-x-1.5">
               <button id="prevPageBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition" title="Previous Page">
                 <i class="fa-solid fa-chevron-left text-xs"></i>
@@ -310,7 +283,6 @@
               </button>
             </div>
 
-            <!-- Zoom Controls -->
             <div class="flex items-center space-x-1">
               <button id="zoomOutBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Zoom Out">
                 <i class="fa-solid fa-magnifying-glass-minus text-xs"></i>
@@ -324,37 +296,29 @@
               </button>
             </div>
 
-            <!-- Visual Helper Hint -->
             <div class="hidden sm:flex items-center gap-1.5 text-[11px] text-indigo-300 bg-indigo-950/60 border border-indigo-700/50 px-2.5 py-1 rounded-md">
               <i class="fa-solid fa-arrows-up-down text-[10px]"></i>
               <span>Drag boundary handles to crop</span>
             </div>
           </div>
 
-          <!-- Canvas Container with Interactive Draggable Overlays -->
           <div id="previewScrollArea" class="flex-1 overflow-auto bg-slate-950 p-4 sm:p-6 flex justify-center items-start relative select-none">
             <div id="canvasWrapper" class="relative shadow-2xl transition-transform duration-100 inline-block select-none">
-              <!-- PDF Canvas -->
               <canvas id="pdfCanvas" class="block bg-white rounded-sm"></canvas>
 
-              <!-- Dynamic Drag & Drop Crop Overlay System -->
               <div id="cropOverlaySystem" class="absolute inset-0 pointer-events-none">
-                
-                <!-- Top Dimmed Region -->
                 <div id="topDimmedMask" class="absolute top-0 left-0 right-0 dimmed-mask pointer-events-auto">
                   <div class="absolute bottom-2 left-3 text-[10px] text-slate-300 font-mono bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/70">
                     <i class="fa-solid fa-ban text-rose-400 mr-1"></i>Trimmed Area
                   </div>
                 </div>
 
-                <!-- Top Resize Handle -->
                 <div id="topHandle" class="resize-handle pointer-events-auto" title="Drag to adjust top crop line">
                   <div class="resize-pill flex items-center justify-center">
                     <div class="w-2 h-0.5 bg-slate-700/60 rounded"></div>
                   </div>
                 </div>
 
-                <!-- Active Selected Crop Box -->
                 <div id="activeCropBox" class="absolute left-0 right-0 crop-selected-region pointer-events-auto drag-region-body flex flex-col justify-between p-2">
                   <div class="flex items-center justify-between pointer-events-none">
                     <span id="cropBoxBadge" class="bg-brand-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow flex items-center gap-1">
@@ -378,28 +342,24 @@
                   </div>
                 </div>
 
-                <!-- Bottom Resize Handle -->
                 <div id="bottomHandle" class="resize-handle pointer-events-auto" title="Drag to adjust bottom crop line">
                   <div class="resize-pill flex items-center justify-center">
                     <div class="w-2 h-0.5 bg-slate-700/60 rounded"></div>
                   </div>
                 </div>
 
-                <!-- Bottom Dimmed Region -->
                 <div id="bottomDimmedMask" class="absolute bottom-0 left-0 right-0 dimmed-mask pointer-events-auto">
                   <div class="absolute top-2 left-3 text-[10px] text-slate-300 font-mono bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/70">
                     <i class="fa-solid fa-ban text-rose-400 mr-1"></i>Trimmed Area
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
         </section>
 
+        <!-- CONTROLS SIDEBAR -->
         <aside class="w-full lg:w-96 flex flex-col bg-slate-900/80 rounded-2xl border border-slate-800 p-4 sm:p-5 overflow-y-auto space-y-5 shadow-xl shrink-0">
-          
-          <!-- Section Selection & Presets -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
@@ -438,7 +398,6 @@
             </div>
           </div>
 
-          <!-- Precise Percentage Inputs & "Save as Default" Feature -->
           <div class="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
@@ -465,7 +424,6 @@
               </div>
             </div>
 
-            <!-- Set As Default Button -->
             <div class="pt-1">
               <button id="setAsDefaultBtn" type="button" class="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-brand-300 hover:text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition">
                 <i class="fa-solid fa-bookmark text-indigo-400"></i>
@@ -475,7 +433,6 @@
             </div>
           </div>
 
-          <!-- Output Options: Crop to Content Only as Default -->
           <div class="space-y-2">
             <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
               <i class="fa-solid fa-print text-emerald-400"></i> Output Mode
@@ -508,7 +465,6 @@
             </div>
           </div>
 
-          <!-- Page Range Selection -->
           <div>
             <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 mb-1.5">
               <i class="fa-regular fa-copy text-indigo-400"></i> Scope
@@ -525,7 +481,6 @@
             </div>
           </div>
 
-          <!-- Action / Download Button -->
           <div class="pt-2 border-t border-slate-800 mt-auto">
             <button id="downloadPdfBtn" class="w-full py-3 px-4 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition duration-200 transform active:scale-[0.98]">
               <i class="fa-solid fa-file-arrow-down text-base"></i>
@@ -537,10 +492,65 @@
               <span>100% Client-Side Vector Engine</span>
             </div>
           </div>
-
         </aside>
       </div>
     </main>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: GENERATE 1-TIME INVITATION LINK (ADMIN PANEL)                      -->
+  <!-- ========================================================================= -->
+  <div id="inviteModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-user-plus"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Create 1-Time Activation Link</h3>
+            <p class="text-xs text-slate-400">Authorize a colleague or workstation without touching code.</p>
+          </div>
+        </div>
+        <button id="closeInviteModalBtn" class="text-slate-400 hover:text-white p-2">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Link Expiration Window</label>
+          <select id="inviteExpireSelect" class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-brand-500">
+            <option value="1">Valid for 1 Hour</option>
+            <option value="6">Valid for 6 Hours</option>
+            <option value="24" selected>Valid for 24 Hours</option>
+            <option value="72">Valid for 3 Days</option>
+          </select>
+        </div>
+
+        <div>
+          <button id="generateInviteBtn" type="button" class="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Generate Cryptographic Single-Use Link</span>
+          </button>
+        </div>
+
+        <div id="generatedLinkArea" class="hidden space-y-2 pt-2 border-t border-slate-800">
+          <label class="block text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Single-Use Activation Link Ready
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="generatedLinkInput" readonly class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[11px] font-mono rounded-xl p-2.5 outline-none select-all truncate">
+            <button id="copyInviteLinkBtn" class="shrink-0 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition">
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-normal">
+            Send this exact link to the person. Once they open it and complete Windows Hello / Touch ID enrollment, the link will permanently expire and cannot be reused by anyone else.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL: ENCRYPTED PDF DETECTED -->
@@ -581,46 +591,6 @@
     </div>
   </div>
 
-  <!-- MODAL: CHANGE ACCESS PASSCODE -->
-  <div id="changePinModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
-      <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-brand-400 flex items-center justify-center text-xl mb-4">
-        <i class="fa-solid fa-key"></i>
-      </div>
-      
-      <h3 class="text-xl font-bold text-white mb-1">Update Fallback Passcode</h3>
-      <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-        Change your personal secret key. The cryptographic envelope will be re-encrypted and saved to this browser.
-      </p>
-
-      <form id="changePinForm" class="space-y-4">
-        <div>
-          <label class="block text-xs text-slate-300 mb-1">New Secret Passcode</label>
-          <input type="password" id="newPinInput" placeholder="Enter new passcode" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-500" required>
-        </div>
-        <div>
-          <label class="block text-xs text-slate-300 mb-1">Confirm New Passcode</label>
-          <input type="password" id="confirmPinInput" placeholder="Confirm new passcode" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-500" required>
-        </div>
-
-        <div id="changePinError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg flex items-center gap-2">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span id="changePinErrorText">Passcodes do not match.</span>
-        </div>
-
-        <div class="flex gap-3 pt-2">
-          <button type="button" id="closeChangePinBtn" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-sm transition">
-            Cancel
-          </button>
-          <button type="submit" class="w-1/2 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl text-sm shadow-md transition flex items-center justify-center gap-2">
-            <span>Save Key</span>
-            <i class="fa-solid fa-check text-xs"></i>
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- TOAST NOTIFICATION -->
   <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 bg-slate-900 text-slate-200 px-4 py-3 rounded-xl border border-slate-800 shadow-2xl">
     <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
@@ -629,98 +599,119 @@
 
   <script>
     /* =========================================================================
-     * HARDWARE-BOUND WEBAUTHN & CRYPTOGRAPHIC ZERO-KNOWLEDGE ENGINE
-     * - MASTER_AUTHORIZED_DEVICE_ID: Paste your copied WebAuthn ID here!
-     *   When populated, NO OTHER DEVICE can ever register or enroll.
+     * CRYPTOGRAPHIC ACTIVATION & HARDWARE LOCK ENGINE
      * ========================================================================= */
-    const MASTER_AUTHORIZED_DEVICE_ID = "8825W/YFpuFdQZi/K7nJng=="; // <--- PASTE YOUR COPIED STRING INSIDE THE QUOTES HERE!
+    
+    // Master secret key used to mathematically sign single-use activation links
+    const MASTER_SIGNING_SECRET = "PDF-STUDIO-VAULT-AUTHENTIC-2026-KEY";
 
-    const VAULT_SALT = "pdf_crop_vault_salt_secure_v4";
-    const STORAGE_VAULT_HASH       = 'pdf_vault_auth_hash_v4';
-    const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v4';
-    const STORAGE_WEBAUTHN_CRED_ID = 'pdf_vault_webauthn_id_v4';
+    const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v6';
+    const STORAGE_WEBAUTHN_CRED_ID = 'pdf_vault_webauthn_id_v6';
+    const STORAGE_CONSUMED_TOKENS  = 'pdf_vault_consumed_tokens_v6';
     const DEFAULT_STORAGE_KEY      = 'pdf_crop_custom_bounds';
 
-    function getFactoryDefaultKey() {
-      const p1 = 20;
-      const p2 = 26;
-      return String(p1) + String(p2); // Evaluates to "2026"
+    // Device restriction detection (Strictly Mac/PC Desktop Only)
+    function isMobileDevice() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isTouchScreen = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      const isMobileUA = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+      const isIosPlatform = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      return isMobileUA || (isTouchScreen && isIosPlatform);
     }
 
-    async function computePasscodeHash(passcode) {
-      const enc = new TextEncoder();
-      const data = enc.encode(VAULT_SALT + String(passcode).trim());
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    async function ensureVaultInitialized() {
-      let currentTargetHash = localStorage.getItem(STORAGE_VAULT_HASH);
-      if (!currentTargetHash) {
-        currentTargetHash = await computePasscodeHash(getFactoryDefaultKey());
-        localStorage.setItem(STORAGE_VAULT_HASH, currentTargetHash);
-      }
-      return currentTargetHash;
-    }
-
-    async function verifyAndDecrypt(passcode) {
-      try {
-        if (!passcode) return false;
-        const targetHash = await ensureVaultInitialized();
-        const computedHash = await computePasscodeHash(passcode);
-        return computedHash === targetHash;
-      } catch (e) {
-        console.error("PIN verification error:", e);
-        return false;
-      }
-    }
-
-    async function reEncryptVault(newPasscode) {
-      const newHash = await computePasscodeHash(newPasscode);
-      localStorage.setItem(STORAGE_VAULT_HASH, newHash);
-    }
-
-    /* =========================================================================
-     * WEBAUTHN / HARDWARE PASSKEY IMPLEMENTATION
-     * ========================================================================= */
     function bufferToBase64(buffer) {
       const bytes = new Uint8Array(buffer);
       let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary);
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
     function base64ToBuffer(base64) {
-      const binary = atob(base64);
+      let b64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return bytes.buffer;
     }
 
-    function isWebAuthnSupported() {
-      return window.PublicKeyCredential !== undefined && typeof window.PublicKeyCredential === 'function';
+    async function generateHMAC(message, secret) {
+      const enc = new TextEncoder();
+      const key = await window.crypto.subtle.importKey(
+        "raw",
+        enc.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign", "verify"]
+      );
+      const signature = await window.crypto.subtle.sign("HMAC", key, enc.encode(message));
+      return bufferToBase64(signature);
     }
 
-    async function enrollCurrentDevice() {
-      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
-        showToast('New device registration is permanently locked by administrator.', 'error');
-        return false;
-      }
+    // Creates a signed single-use invitation token
+    async function createSignedActivationToken(validHours = 24) {
+      const payload = {
+        id: 'tok_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36),
+        exp: Date.now() + (validHours * 60 * 60 * 1000)
+      };
+      const payloadStr = JSON.stringify(payload);
+      const payloadB64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const sig = await generateHMAC(payloadB64, MASTER_SIGNING_SECRET);
+      return `${payloadB64}.${sig}`;
+    }
 
-      if (!isWebAuthnSupported()) {
-        showToast('WebAuthn hardware keys are not supported in this browser.', 'error');
+    // Verifies the invitation token
+    async function verifyActivationToken(token) {
+      if (!token || !token.includes('.')) return { valid: false, reason: 'Invalid format' };
+      const [payloadB64, sig] = token.split('.');
+      try {
+        const expectedSig = await generateHMAC(payloadB64, MASTER_SIGNING_SECRET);
+        if (expectedSig !== sig) {
+          return { valid: false, reason: 'Tampered or counterfeit invitation link' };
+        }
+
+        let b64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const payload = JSON.parse(atob(b64));
+
+        if (Date.now() > payload.exp) {
+          return { valid: false, reason: 'This activation link has expired' };
+        }
+
+        const consumed = JSON.parse(localStorage.getItem(STORAGE_CONSUMED_TOKENS) || '[]');
+        if (consumed.includes(payload.id)) {
+          return { valid: false, reason: 'This single-use link has already been used' };
+        }
+
+        return { valid: true, payload };
+      } catch (e) {
+        return { valid: false, reason: 'Failed to parse activation link' };
+      }
+    }
+
+    function markTokenAsConsumed(tokenId) {
+      try {
+        const consumed = JSON.parse(localStorage.getItem(STORAGE_CONSUMED_TOKENS) || '[]');
+        if (!consumed.includes(tokenId)) {
+          consumed.push(tokenId);
+          localStorage.setItem(STORAGE_CONSUMED_TOKENS, JSON.stringify(consumed));
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    let activeValidActivationToken = null;
+
+    async function enrollCurrentDevice() {
+      if (isMobileDevice()) {
+        showToast('Mobile devices are strictly forbidden from enrolling.', 'error');
         return false;
       }
 
       try {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
-
         const userId = new Uint8Array(16);
         window.crypto.getRandomValues(userId);
 
@@ -733,15 +724,15 @@
             },
             user: {
               id: userId,
-              name: "authorized-device-owner",
-              displayName: "Authorized Device User"
+              name: "authorized-workstation",
+              displayName: "Authorized Workstation"
             },
             pubKeyCredParams: [
-              { alg: -7, type: "public-key" },  // ES256
-              { alg: -257, type: "public-key" } // RS256
+              { alg: -7, type: "public-key" },
+              { alg: -257, type: "public-key" }
             ],
             authenticatorSelection: {
-              authenticatorAttachment: "platform", // Enforces built-in Windows Hello / Touch ID
+              authenticatorAttachment: "platform",
               userVerification: "required"
             },
             timeout: 60000,
@@ -753,41 +744,38 @@
         if (newCredential) {
           const rawIdBase64 = bufferToBase64(newCredential.rawId);
           localStorage.setItem(STORAGE_WEBAUTHN_CRED_ID, rawIdBase64);
-          updatePasskeyUI();
-          showToast('This PC has been enrolled as the Authorized Hardware Device!', 'success');
-          console.log("===> YOUR ENROLLED DEVICE ID IS BELOW (Save this!):");
-          console.log(rawIdBase64);
-          if (window.va) window.va('event', { name: 'device_enrolled' });
+          localStorage.setItem(STORAGE_VAULT_TOKEN, 'hardware_authenticated');
+
+          if (activeValidActivationToken && activeValidActivationToken.id) {
+            markTokenAsConsumed(activeValidActivationToken.id);
+            // Clean URL so token cannot be extracted or forwarded
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+
+          showToast('This PC has been permanently authorized!', 'success');
+          unlockWorkspace();
+          if (window.va) window.va('event', { name: 'device_enrolled_via_link' });
           return true;
         }
       } catch (err) {
-        console.error("Hardware enrollment cancelled or failed:", err);
-        showToast('Enrollment cancelled: ' + (err.message || 'Verification aborted'), 'error');
+        console.error("Hardware enrollment error:", err);
+        showToast('Enrollment cancelled: ' + (err.message || 'Cancelled'), 'error');
       }
       return false;
     }
 
-    function getEffectiveCredentialId() {
-      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
-        return MASTER_AUTHORIZED_DEVICE_ID.trim();
-      }
-      return localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
-    }
-
     async function authenticateWithHardwarePasskey() {
-      if (!isWebAuthnSupported()) {
-        showToast('WebAuthn is not supported in this browser.', 'error');
+      if (isMobileDevice()) {
+        deviceBlockedNotice.classList.remove('hidden');
+        deviceBlockedReason.textContent = 'Mobile access is disabled. Open on your authorized PC.';
         return false;
       }
 
-      const activeCredId = getEffectiveCredentialId();
+      const activeCredId = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
       if (!activeCredId) {
-        // First run on this device and not hard-locked: guide user to enroll
-        const enrolled = await enrollCurrentDevice();
-        if (enrolled) {
-          unlockWorkspace();
-        }
-        return;
+        cryptoErrorText.textContent = 'This machine is not authorized. You must open an activation invitation link to register.';
+        cryptoError.classList.remove('hidden');
+        return false;
       }
 
       try {
@@ -810,17 +798,17 @@
 
         const assertion = await navigator.credentials.get(getCredentialOptions);
         if (assertion) {
-          localStorage.setItem(STORAGE_VAULT_TOKEN, 'webauthn_hardware_verified');
+          localStorage.setItem(STORAGE_VAULT_TOKEN, 'hardware_authenticated');
           unlockWorkspace();
-          showToast('Hardware verified via Windows Hello / Touch ID!', 'success');
+          showToast('Hardware verified via biometric chip!', 'success');
           if (window.va) window.va('event', { name: 'unlock_hardware_success' });
           return true;
         }
       } catch (err) {
-        console.error("Hardware authentication failed:", err);
-        cryptoErrorText.textContent = 'Hardware verification rejected: This PC does not match the authorized hardware key.';
+        console.error("Hardware auth rejected:", err);
+        cryptoErrorText.textContent = 'Hardware rejected: This PC does not match the enrolled physical key.';
         cryptoError.classList.remove('hidden');
-        showToast('Hardware verification rejected: Unauthorized device.', 'error');
+        showToast('Hardware verification rejected.', 'error');
       }
       return false;
     }
@@ -844,30 +832,28 @@
       renderPending: false
     };
 
-    // DOM References
+    // DOM Elements
     const cryptoShield = document.getElementById('cryptoShield');
     const appContainer = document.getElementById('appContainer');
-    const cryptoUnlockForm = document.getElementById('cryptoUnlockForm');
-    const passcodeInput = document.getElementById('passcodeInput');
     const cryptoError = document.getElementById('cryptoError');
     const cryptoErrorText = document.getElementById('cryptoErrorText');
-    const toggleKeyVisibility = document.getElementById('toggleKeyVisibility');
     const lockWorkspaceBtn = document.getElementById('lockWorkspaceBtn');
-    const managePinBtn = document.getElementById('managePinBtn');
-
     const passkeyAuthBtn = document.getElementById('passkeyAuthBtn');
     const passkeyBtnText = document.getElementById('passkeyBtnText');
     const enrollDeviceBtn = document.getElementById('enrollDeviceBtn');
     const deviceRegistrationBadge = document.getElementById('deviceRegistrationBadge');
-    const resetEnrollmentBtn = document.getElementById('resetEnrollmentBtn');
+    const deviceBlockedNotice = document.getElementById('deviceBlockedNotice');
+    const deviceBlockedReason = document.getElementById('deviceBlockedReason');
+    const invitationDetectedBanner = document.getElementById('invitationDetectedBanner');
 
-    const changePinModal = document.getElementById('changePinModal');
-    const changePinForm = document.getElementById('changePinForm');
-    const newPinInput = document.getElementById('newPinInput');
-    const confirmPinInput = document.getElementById('confirmPinInput');
-    const changePinError = document.getElementById('changePinError');
-    const changePinErrorText = document.getElementById('changePinErrorText');
-    const closeChangePinBtn = document.getElementById('closeChangePinBtn');
+    const openInviteModalBtn = document.getElementById('openInviteModalBtn');
+    const inviteModal = document.getElementById('inviteModal');
+    const closeInviteModalBtn = document.getElementById('closeInviteModalBtn');
+    const generateInviteBtn = document.getElementById('generateInviteBtn');
+    const inviteExpireSelect = document.getElementById('inviteExpireSelect');
+    const generatedLinkArea = document.getElementById('generatedLinkArea');
+    const generatedLinkInput = document.getElementById('generatedLinkInput');
+    const copyInviteLinkBtn = document.getElementById('copyInviteLinkBtn');
 
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -945,52 +931,54 @@
       }, 3200);
     }
 
-    function updatePasskeyUI() {
-      const isLockedMaster = MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0;
-      const activeId = getEffectiveCredentialId();
-
-      if (isLockedMaster) {
-        passkeyBtnText.textContent = "Unlock with Windows Hello / Touch ID";
-        enrollDeviceBtn.classList.add('hidden');
-        resetEnrollmentBtn.classList.add('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Locked to Master PC';
-        deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-emerald-400 font-medium';
+    async function initAuthenticationCheck() {
+      // 1. Mobile check
+      if (isMobileDevice()) {
+        cryptoShield.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+        deviceBlockedNotice.classList.remove('hidden');
+        deviceBlockedReason.textContent = 'Mobile access is disabled. Open on your authorized PC.';
+        passkeyAuthBtn.disabled = true;
+        passkeyAuthBtn.classList.add('opacity-50', 'cursor-not-allowed');
         return;
       }
 
-      if (activeId) {
-        passkeyBtnText.textContent = "Unlock with Windows Hello / Touch ID";
-        enrollDeviceBtn.classList.add('hidden');
-        resetEnrollmentBtn.classList.remove('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i> Hardware Enrolled';
-        deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-emerald-400 font-medium';
-      } else {
-        passkeyBtnText.textContent = "Register & Enroll This PC (Touch ID / Hello)";
+      // 2. Check URL for Activation Token (?activate=...)
+      const urlParams = new URLSearchParams(window.location.search);
+      const activationToken = urlParams.get('activate');
+      const registeredDevice = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
+
+      if (activationToken) {
+        const verification = await verifyActivationToken(activationToken);
+        if (verification.valid) {
+          activeValidActivationToken = verification.payload;
+          invitationDetectedBanner.classList.remove('hidden');
+          enrollDeviceBtn.classList.remove('hidden');
+          deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-envelope-open-text text-emerald-400"></i> Valid Activation Key Present';
+        } else {
+          deviceBlockedNotice.classList.remove('hidden');
+          deviceBlockedReason.textContent = 'Activation Failed: ' + verification.reason;
+        }
+      } else if (!registeredDevice) {
+        // First ever visit without link: Allow setup of first admin device
         enrollDeviceBtn.classList.remove('hidden');
-        resetEnrollmentBtn.classList.add('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-circle-info text-amber-400"></i> No Device Enrolled';
-        deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-slate-400';
+        passkeyAuthBtn.classList.add('hidden');
+        enrollDeviceBtn.textContent = 'Enroll This PC as Master Admin Device';
+        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-shield text-amber-400"></i> First-Time Master Setup';
+      } else {
+        // Normal registered device
+        passkeyAuthBtn.classList.remove('hidden');
+        enrollDeviceBtn.classList.add('hidden');
+        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Device Registered';
       }
-    }
 
-    async function initAuthenticationCheck() {
-      await ensureVaultInitialized();
-      updatePasskeyUI();
-
+      // 3. Check if current browser session is already active
       const sessionToken = localStorage.getItem(STORAGE_VAULT_TOKEN);
-      if (sessionToken) {
-        if (sessionToken === 'webauthn_hardware_verified') {
-          unlockWorkspace();
-          return;
-        }
-        const valid = await verifyAndDecrypt(sessionToken);
-        if (valid) {
-          unlockWorkspace();
-          return;
-        }
+      if (sessionToken === 'hardware_authenticated' && registeredDevice) {
+        unlockWorkspace();
+        return;
       }
 
-      // Display shield
       cryptoShield.classList.remove('hidden');
       appContainer.classList.add('hidden');
     }
@@ -1007,105 +995,51 @@
     });
 
     enrollDeviceBtn.addEventListener('click', async () => {
-      const enrolled = await enrollCurrentDevice();
-      if (enrolled) {
-        unlockWorkspace();
-      }
-    });
-
-    resetEnrollmentBtn.addEventListener('click', () => {
-      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
-        showToast('Reset disabled: Master PC is permanently hard-coded in source.', 'error');
-        return;
-      }
-      if (confirm("Reset authorized hardware registration? This PC will need to be re-enrolled.")) {
-        localStorage.removeItem(STORAGE_WEBAUTHN_CRED_ID);
-        updatePasskeyUI();
-        showToast('Device hardware enrollment removed', 'info');
-      }
-    });
-
-    cryptoUnlockForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const enteredKey = passcodeInput.value.trim();
-      const unlockBtn = document.getElementById('unlockBtn');
-      
-      unlockBtn.disabled = true;
-      unlockBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-xs"></i><span>Verifying PIN...</span>';
-
-      const isValid = await verifyAndDecrypt(enteredKey);
-
-      if (isValid) {
-        localStorage.setItem(STORAGE_VAULT_TOKEN, enteredKey);
-        cryptoError.classList.add('hidden');
-        unlockWorkspace();
-        showToast('Vault decrypted via PIN. Welcome!', 'success');
-        if (window.va) window.va('event', { name: 'unlock_pin_success' });
-      } else {
-        cryptoErrorText.textContent = 'Invalid passcode. Please enter correct key.';
-        cryptoError.classList.remove('hidden');
-        passcodeInput.value = '';
-        passcodeInput.focus();
-        showToast('Decryption rejected: Invalid passcode', 'error');
-      }
-
-      unlockBtn.disabled = false;
-      unlockBtn.innerHTML = '<i class="fa-solid fa-key text-xs"></i><span>Unlock via PIN</span>';
-    });
-
-    toggleKeyVisibility.addEventListener('click', () => {
-      const isPass = passcodeInput.type === 'password';
-      passcodeInput.type = isPass ? 'text' : 'password';
-      toggleKeyVisibility.innerHTML = isPass ? '<i class="fa-regular fa-eye-slash text-sm"></i>' : '<i class="fa-regular fa-eye text-sm"></i>';
+      await enrollCurrentDevice();
     });
 
     lockWorkspaceBtn.addEventListener('click', () => {
       localStorage.removeItem(STORAGE_VAULT_TOKEN);
       state.isUnlocked = false;
-      passcodeInput.value = '';
       cryptoError.classList.add('hidden');
       cryptoShield.classList.remove('hidden');
       appContainer.classList.add('hidden');
       showToast('Workspace locked', 'info');
     });
 
-    managePinBtn.addEventListener('click', () => {
-      newPinInput.value = '';
-      confirmPinInput.value = '';
-      changePinError.classList.add('hidden');
-      changePinModal.classList.remove('hidden');
-      newPinInput.focus();
+    // Invite Modal Controls
+    openInviteModalBtn.addEventListener('click', () => {
+      generatedLinkArea.classList.add('hidden');
+      inviteModal.classList.remove('hidden');
     });
 
-    closeChangePinBtn.addEventListener('click', () => {
-      changePinModal.classList.add('hidden');
+    closeInviteModalBtn.addEventListener('click', () => {
+      inviteModal.classList.add('hidden');
     });
 
-    changePinForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const p1 = newPinInput.value.trim();
-      const p2 = confirmPinInput.value.trim();
+    generateInviteBtn.addEventListener('click', async () => {
+      const hours = parseInt(inviteExpireSelect.value) || 24;
+      const token = await createSignedActivationToken(hours);
+      const origin = window.location.origin + window.location.pathname;
+      const fullLink = `${origin}?activate=${token}`;
+      
+      generatedLinkInput.value = fullLink;
+      generatedLinkArea.classList.remove('hidden');
+      showToast('Single-use activation link created!', 'success');
+    });
 
-      if (p1.length < 3) {
-        changePinErrorText.textContent = 'Passcode must be at least 3 characters.';
-        changePinError.classList.remove('hidden');
-        return;
-      }
-
-      if (p1 !== p2) {
-        changePinErrorText.textContent = 'Passcodes do not match.';
-        changePinError.classList.remove('hidden');
-        return;
-      }
-
+    copyInviteLinkBtn.addEventListener('click', async () => {
       try {
-        await reEncryptVault(p1);
-        localStorage.setItem(STORAGE_VAULT_TOKEN, p1);
-        changePinModal.classList.add('hidden');
-        showToast('New fallback passcode saved successfully!', 'success');
+        await navigator.clipboard.writeText(generatedLinkInput.value);
+        copyInviteLinkBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied!';
+        setTimeout(() => {
+          copyInviteLinkBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+        }, 2000);
+        showToast('Link copied to clipboard. Share it with your authorized user.', 'info');
       } catch (err) {
-        changePinErrorText.textContent = 'Error updating vault: ' + err.message;
-        changePinError.classList.remove('hidden');
+        generatedLinkInput.select();
+        document.execCommand('copy');
+        showToast('Link copied!', 'info');
       }
     });
 
@@ -1561,7 +1495,7 @@
 
     async function renderPageToImageBytes(pageIndex, topRatio, bottomRatio) {
       const page = await state.pdfDocument.getPage(pageIndex + 1);
-      const scale = 2.5; // ~250-300 DPI
+      const scale = 2.5;
       const viewport = page.getViewport({ scale });
       const offCanvas = document.createElement('canvas');
       offCanvas.width = Math.round(viewport.width);
@@ -1628,7 +1562,6 @@
         let outputPdfDoc;
         let directSuccess = false;
 
-        // Try direct native vector cropping first
         try {
           const loadBytes = state.rawPdfBytes.slice(0);
           const loadOptions = {};
@@ -1758,11 +1691,10 @@
             directSuccess = true;
           }
         } catch (innerErr) {
-          console.warn('Direct vector parsing switched to decrypted canvas pipeline:', innerErr);
+          console.warn('Direct vector parsing switched to canvas pipeline:', innerErr);
           directSuccess = false;
         }
 
-        // Universal Decrypted High-Resolution Fallback
         if (!directSuccess) {
           outputPdfDoc = await PDFDocument.create();
           const A4_WIDTH = 595.28;
@@ -1858,7 +1790,6 @@
       }, 180);
     });
 
-    // Start verification on page load
     initAuthenticationCheck();
   </script>
 </body>
