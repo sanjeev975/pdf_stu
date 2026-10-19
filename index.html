@@ -135,7 +135,7 @@
             <span id="passkeyBtnText">Unlock with Windows Hello / Touch ID</span>
           </button>
 
-          <!-- Register this device prompt (if not registered yet) -->
+          <!-- Register this device prompt (Hidden automatically once locked to your PC) -->
           <button 
             type="button" 
             id="enrollDeviceBtn"
@@ -630,10 +630,11 @@
   <script>
     /* =========================================================================
      * HARDWARE-BOUND WEBAUTHN & CRYPTOGRAPHIC ZERO-KNOWLEDGE ENGINE
-     * - Binds identity to TPM/Secure Enclave via navigator.credentials
-     * - Hardware Passkey: Windows Hello / Touch ID / Security Key
-     * - AES-256 / SHA-256 Fallback PIN validation
+     * - MASTER_AUTHORIZED_DEVICE_ID: Paste your copied WebAuthn ID here!
+     *   When populated, NO OTHER DEVICE can ever register or enroll.
      * ========================================================================= */
+    const MASTER_AUTHORIZED_DEVICE_ID = "8825W/YFpuFdQZi/K7nJng=="; // <--- PASTE YOUR COPIED STRING INSIDE THE QUOTES HERE!
+
     const VAULT_SALT = "pdf_crop_vault_salt_secure_v4";
     const STORAGE_VAULT_HASH       = 'pdf_vault_auth_hash_v4';
     const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v4';
@@ -706,6 +707,11 @@
     }
 
     async function enrollCurrentDevice() {
+      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
+        showToast('New device registration is permanently locked by administrator.', 'error');
+        return false;
+      }
+
       if (!isWebAuthnSupported()) {
         showToast('WebAuthn hardware keys are not supported in this browser.', 'error');
         return false;
@@ -749,6 +755,8 @@
           localStorage.setItem(STORAGE_WEBAUTHN_CRED_ID, rawIdBase64);
           updatePasskeyUI();
           showToast('This PC has been enrolled as the Authorized Hardware Device!', 'success');
+          console.log("===> YOUR ENROLLED DEVICE ID IS BELOW (Save this!):");
+          console.log(rawIdBase64);
           if (window.va) window.va('event', { name: 'device_enrolled' });
           return true;
         }
@@ -759,15 +767,22 @@
       return false;
     }
 
+    function getEffectiveCredentialId() {
+      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
+        return MASTER_AUTHORIZED_DEVICE_ID.trim();
+      }
+      return localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
+    }
+
     async function authenticateWithHardwarePasskey() {
       if (!isWebAuthnSupported()) {
         showToast('WebAuthn is not supported in this browser.', 'error');
         return false;
       }
 
-      const storedCredIdBase64 = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
-      if (!storedCredIdBase64) {
-        // First run on this device: guide user to enroll
+      const activeCredId = getEffectiveCredentialId();
+      if (!activeCredId) {
+        // First run on this device and not hard-locked: guide user to enroll
         const enrolled = await enrollCurrentDevice();
         if (enrolled) {
           unlockWorkspace();
@@ -778,7 +793,7 @@
       try {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
-        const credIdBuffer = base64ToBuffer(storedCredIdBase64);
+        const credIdBuffer = base64ToBuffer(activeCredId);
 
         const getCredentialOptions = {
           publicKey: {
@@ -803,9 +818,9 @@
         }
       } catch (err) {
         console.error("Hardware authentication failed:", err);
-        cryptoErrorText.textContent = 'Hardware verification rejected: Unauthorized device or cancelled.';
+        cryptoErrorText.textContent = 'Hardware verification rejected: This PC does not match the authorized hardware key.';
         cryptoError.classList.remove('hidden');
-        showToast('Hardware verification rejected.', 'error');
+        showToast('Hardware verification rejected: Unauthorized device.', 'error');
       }
       return false;
     }
@@ -931,15 +946,28 @@
     }
 
     function updatePasskeyUI() {
-      const hasPasskey = !!localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
-      if (hasPasskey) {
+      const isLockedMaster = MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0;
+      const activeId = getEffectiveCredentialId();
+
+      if (isLockedMaster) {
         passkeyBtnText.textContent = "Unlock with Windows Hello / Touch ID";
         enrollDeviceBtn.classList.add('hidden');
+        resetEnrollmentBtn.classList.add('hidden');
+        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Locked to Master PC';
+        deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-emerald-400 font-medium';
+        return;
+      }
+
+      if (activeId) {
+        passkeyBtnText.textContent = "Unlock with Windows Hello / Touch ID";
+        enrollDeviceBtn.classList.add('hidden');
+        resetEnrollmentBtn.classList.remove('hidden');
         deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i> Hardware Enrolled';
         deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-emerald-400 font-medium';
       } else {
-        passkeyBtnText.textContent = "Register & Enroll This PC (Windows Hello)";
+        passkeyBtnText.textContent = "Register & Enroll This PC (Touch ID / Hello)";
         enrollDeviceBtn.classList.remove('hidden');
+        resetEnrollmentBtn.classList.add('hidden');
         deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-circle-info text-amber-400"></i> No Device Enrolled';
         deviceRegistrationBadge.className = 'flex items-center gap-1.5 text-slate-400';
       }
@@ -986,6 +1014,10 @@
     });
 
     resetEnrollmentBtn.addEventListener('click', () => {
+      if (MASTER_AUTHORIZED_DEVICE_ID && MASTER_AUTHORIZED_DEVICE_ID.trim().length > 0) {
+        showToast('Reset disabled: Master PC is permanently hard-coded in source.', 'error');
+        return;
+      }
       if (confirm("Reset authorized hardware registration? This PC will need to be re-enrolled.")) {
         localStorage.removeItem(STORAGE_WEBAUTHN_CRED_ID);
         updatePasskeyUI();
@@ -1010,7 +1042,7 @@
         showToast('Vault decrypted via PIN. Welcome!', 'success');
         if (window.va) window.va('event', { name: 'unlock_pin_success' });
       } else {
-        cryptoErrorText.textContent = 'Invalid passcode. Please enter correct password.';
+        cryptoErrorText.textContent = 'Invalid passcode. Please enter 2026.';
         cryptoError.classList.remove('hidden');
         passcodeInput.value = '';
         passcodeInput.focus();
