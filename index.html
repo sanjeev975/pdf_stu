@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Section Crop Studio - Hardware Secure Vault</title>
+  
+  <!-- Vercel Web Analytics for Plain HTML Sites (No npm/React required) -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Font Awesome for Icons -->
@@ -742,6 +749,7 @@
           localStorage.setItem(STORAGE_WEBAUTHN_CRED_ID, rawIdBase64);
           updatePasskeyUI();
           showToast('This PC has been enrolled as the Authorized Hardware Device!', 'success');
+          if (window.va) window.va('event', { name: 'device_enrolled' });
           return true;
         }
       } catch (err) {
@@ -790,6 +798,7 @@
           localStorage.setItem(STORAGE_VAULT_TOKEN, 'webauthn_hardware_verified');
           unlockWorkspace();
           showToast('Hardware verified via Windows Hello / Touch ID!', 'success');
+          if (window.va) window.va('event', { name: 'unlock_hardware_success' });
           return true;
         }
       } catch (err) {
@@ -999,6 +1008,7 @@
         cryptoError.classList.add('hidden');
         unlockWorkspace();
         showToast('Vault decrypted via PIN. Welcome!', 'success');
+        if (window.va) window.va('event', { name: 'unlock_pin_success' });
       } else {
         cryptoErrorText.textContent = 'Invalid passcode. Please enter 2026.';
         cryptoError.classList.remove('hidden');
@@ -1186,6 +1196,7 @@
         renderCurrentPage();
 
         showToast(`Loaded ${state.fileName} (${state.totalPages} pages)`, 'success');
+        if (window.va) window.va('event', { name: 'pdf_loaded', pages: state.totalPages });
       } catch (err) {
         console.error('PDF load error:', err);
         if (err.name === 'PasswordException') {
@@ -1797,6 +1808,7 @@
         URL.revokeObjectURL(downloadUrl);
 
         showToast('PDF cropped & exported successfully!', 'success');
+        if (window.va) window.va('event', { name: 'pdf_crop_downloaded', format: outputFormat });
       } catch (err) {
         console.error('Export error:', err);
         showToast('Failed to crop PDF: ' + err.message, 'error');
