@@ -1010,7 +1010,7 @@
         showToast('Vault decrypted via PIN. Welcome!', 'success');
         if (window.va) window.va('event', { name: 'unlock_pin_success' });
       } else {
-        cryptoErrorText.textContent = 'Invalid passcode. Please enter 2026.';
+        cryptoErrorText.textContent = 'Invalid passcode. Please enter correct password.';
         cryptoError.classList.remove('hidden');
         passcodeInput.value = '';
         passcodeInput.focus();
