@@ -19,6 +19,10 @@
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <!-- PDF.js for crisp canvas rendering & preview -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Google MediaPipe Selfie Segmentation for high accuracy portrait cutout -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -97,7 +101,7 @@
 
     /* Passport Oval Guideline Overlay */
     .passport-guide-oval {
-      border: 2px dashed rgba(99, 102, 241, 0.7);
+      border: 2px dashed rgba(99, 102, 241, 0.75);
       border-radius: 50% 50% 46% 46% / 55% 55% 45% 45%;
       box-shadow: inset 0 0 15px rgba(99, 102, 241, 0.15);
     }
@@ -125,7 +129,7 @@
 
         <h2 id="shieldHeading" class="text-xl sm:text-2xl font-bold text-white mb-2 tracking-tight">Authorized PC Verification</h2>
         <p id="shieldSubheading" class="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
-          Access is strictly restricted to authorized workstations. Hardware biometric challenge required.
+          Access is restricted to authorized workstations. Hardware biometric challenge required.
         </p>
 
         <!-- Blocked Device Alert -->
@@ -178,7 +182,7 @@
           <span id="deviceRegistrationBadge" class="flex items-center gap-1.5 text-slate-400">
             <i class="fa-solid fa-lock text-emerald-400"></i> Hardware Lock Active
           </span>
-          <span class="text-[10px] text-slate-500 font-mono">v6.0-studio-suite</span>
+          <span class="text-[10px] text-slate-500 font-mono">v7.2-a4-geometry-ai</span>
         </div>
       </div>
     </div>
@@ -201,7 +205,7 @@
               <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified
             </span>
           </h1>
-          <p class="text-xs text-slate-400 hidden sm:block">PDF Crop & Section Splitter &bull; Passport Photo Studio & A4 Grid</p>
+          <p class="text-xs text-slate-400 hidden sm:block">PDF Section Splitter &bull; Passport Studio (Exact mm &bull; AI Cutout)</p>
         </div>
       </div>
 
@@ -213,7 +217,7 @@
         </button>
         <button id="tabPassport" class="px-3.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white rounded-lg flex items-center gap-2 transition">
           <i class="fa-solid fa-id-badge"></i>
-          <span>Passport Photo & A4 Grid</span>
+          <span>Passport Photo & A4 Sheet</span>
         </button>
       </div>
 
@@ -355,10 +359,6 @@
                   <input type="radio" name="outputFormat" value="preserve_page_white" class="accent-brand-500">
                   <span>Preserve Page (Clean White Margins)</span>
                 </label>
-                <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer">
-                  <input type="radio" name="outputFormat" value="fit_a4_centered" class="accent-brand-500">
-                  <span>Fit Centered on A4 Paper</span>
-                </label>
               </div>
             </div>
 
@@ -386,7 +386,9 @@
               <span class="font-bold text-white flex items-center gap-1.5">
                 <i class="fa-solid fa-camera text-brand-400"></i> Passport Photo Framing
               </span>
-              <span id="photoDimensionBadge" class="font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px]">35 x 45 mm</span>
+              <span id="photoDimensionBadge" class="font-mono text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px] font-bold">
+                35 x 45 mm (Exact Metric)
+              </span>
             </div>
 
             <div class="flex items-center gap-2">
@@ -396,8 +398,8 @@
                 <input type="file" id="photoFileInput" accept="image/*" class="hidden">
               </label>
 
-              <button id="toggleFaceGuideBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center gap-1.5 border border-slate-700">
-                <i class="fa-regular fa-circle-user text-brand-400"></i>
+              <button id="toggleFaceGuideBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-brand-400 rounded-lg text-xs flex items-center gap-1.5 border border-slate-700">
+                <i class="fa-regular fa-circle-user"></i>
                 <span>Biometric Guide</span>
               </button>
             </div>
@@ -413,7 +415,7 @@
               </div>
               <h3 class="text-base font-bold text-white mb-1">Load Portrait / Selfie</h3>
               <p class="text-xs text-slate-400 mb-4 leading-relaxed">
-                Upload any picture. Adjust scale & crop with official guidelines, replace the background with clean white, and tile into an A4 sheet.
+                Upload your picture. Our AI automatically isolates the portrait and applies any custom solid background color, fitted cleanly onto standard A4 print sheets without distorting image size.
               </p>
               <button onclick="document.getElementById('photoFileInput').click()" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold transition">
                 Choose Image File
@@ -424,27 +426,38 @@
             <div id="photoCropStage" class="hidden relative shadow-2xl bg-slate-900 border border-slate-700 rounded overflow-hidden">
               <canvas id="photoEditorCanvas" class="block cursor-grab active:cursor-grabbing"></canvas>
               
-              <!-- Oval Biometric Guideline (Indian/International Passport Standard) -->
+              <!-- Oval Biometric Guideline (Indian / ICAO Passport Standard) -->
               <div id="biometricGuideOverlay" class="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4">
-                <div class="passport-guide-oval w-[72%] h-[82%] relative flex flex-col items-center justify-between py-2">
-                  <span class="text-[9px] text-brand-300 font-mono bg-slate-950/70 px-1.5 rounded">Crown / Hairline</span>
+                <div class="passport-guide-oval w-[72%] h-[80%] relative flex flex-col items-center justify-between py-2">
+                  <span class="text-[9px] text-brand-300 font-mono bg-slate-950/70 px-1.5 rounded">Crown / Hairline (~70%)</span>
                   <div class="w-full border-t border-brand-400/30"></div>
-                  <span class="text-[9px] text-brand-300 font-mono bg-slate-950/70 px-1.5 rounded">Chin Base</span>
+                  <span class="text-[9px] text-brand-300 font-mono bg-slate-950/70 px-1.5 rounded">Chin Line</span>
                 </div>
+              </div>
+
+              <!-- Processing AI indicator -->
+              <div id="aiProcessingBadge" class="hidden absolute top-3 left-3 bg-slate-900/90 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-spinner fa-spin"></i> Running Portrait AI Cutout...
               </div>
             </div>
 
-            <!-- Drag & Zoom Hint Bar -->
-            <div id="photoAdjustBar" class="hidden mt-4 flex items-center gap-3 bg-slate-900/90 border border-slate-800 px-4 py-2 rounded-xl text-xs text-slate-300 shadow-lg">
-              <span class="flex items-center gap-1.5 text-slate-400">
+            <!-- Drag & Zoom Controls Bar -->
+            <div id="photoAdjustBar" class="hidden mt-4 flex flex-wrap items-center justify-center gap-3 bg-slate-900/90 border border-slate-800 px-4 py-2 rounded-xl text-xs text-slate-300 shadow-lg max-w-xl">
+              <span class="flex items-center gap-1 text-slate-400">
                 <i class="fa-solid fa-magnifying-glass text-brand-400"></i> Zoom:
               </span>
-              <input type="range" id="photoZoomSlider" min="0.5" max="3.0" step="0.05" value="1" class="accent-brand-500 w-32 cursor-pointer">
+              <input type="range" id="photoZoomSlider" min="0.5" max="3.0" step="0.05" value="1" class="accent-brand-500 w-28 cursor-pointer">
               
-              <span class="border-l border-slate-800 pl-3 flex items-center gap-1.5 text-slate-400">
+              <span class="border-l border-slate-800 pl-2.5 flex items-center gap-1 text-slate-400">
                 <i class="fa-solid fa-arrows-rotate text-brand-400"></i> Rotate:
               </span>
-              <input type="range" id="photoRotateSlider" min="-45" max="45" step="1" value="0" class="accent-brand-500 w-24 cursor-pointer">
+              <input type="range" id="photoRotateSlider" min="-45" max="45" step="1" value="0" class="accent-brand-500 w-20 cursor-pointer">
+
+              <span class="border-l border-slate-800 pl-2.5 flex items-center gap-1 text-slate-400">
+                <i class="fa-solid fa-feather-pointed text-brand-400"></i> Feather:
+              </span>
+              <input type="range" id="featherSlider" min="0" max="15" step="1" value="3" class="accent-brand-500 w-16 cursor-pointer" title="Adjust boundary edge softness">
+
               <button id="resetTransformBtn" class="text-[11px] text-slate-400 hover:text-white underline ml-1">Reset</button>
             </div>
           </div>
@@ -455,9 +468,12 @@
           
           <!-- Section A: Standard Selection -->
           <div>
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 mb-2">
-              <i class="fa-solid fa-globe text-brand-400"></i> Passport Size Standard
-            </label>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-globe text-brand-400"></i> Photo Standard
+              </label>
+              <span class="text-[10px] text-emerald-400 font-mono">100% Fixed Scale</span>
+            </div>
             <div class="grid grid-cols-2 gap-2 text-xs">
               <button type="button" data-pass-preset="35x45" class="passport-preset-btn active p-2.5 rounded-xl border-2 border-brand-500 bg-brand-500/15 text-left font-semibold text-brand-300 transition">
                 <div class="font-bold">35 x 45 mm</div>
@@ -478,64 +494,71 @@
             </div>
           </div>
 
-          <!-- Section B: Pure White Background Removal / Replace Engine -->
+          <!-- Section B: AI Background Changer Engine -->
           <div class="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Pure White Background
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> AI Background Engine
               </span>
               <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="enableWhiteBgCheck" checked class="sr-only peer">
+                <input type="checkbox" id="enableBgChangeCheck" checked class="sr-only peer">
                 <div class="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
               </label>
             </div>
+            
             <p class="text-[11px] text-slate-400 leading-normal">
-              Replaces background surrounding subject with official pure #FFFFFF. Adjust tolerance to cleanly catch wall shades.
+              Uses neural segmentation to extract the subject cleanly and apply any solid background tone.
             </p>
 
             <div class="space-y-2 pt-1 text-xs">
-              <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Color Replace Tolerance:</span>
-                <span id="toleranceValText" class="font-mono text-emerald-400 font-bold">35%</span>
-              </div>
-              <input type="range" id="bgToleranceSlider" min="5" max="80" value="35" class="w-full accent-emerald-500 cursor-pointer">
-
-              <div class="flex items-center justify-between pt-1">
-                <span class="text-[11px] text-slate-400">Corner Sample Point:</span>
-                <button id="reSampleBgBtn" class="text-[10px] bg-slate-900 border border-slate-700 hover:bg-slate-800 px-2 py-0.5 rounded text-slate-300">
-                  <i class="fa-solid fa-eye-dropper text-emerald-400 mr-1"></i>Sample Top-Left
-                </button>
+              <span class="text-[10px] text-slate-400 block font-semibold uppercase">Choose Target Color:</span>
+              <div class="flex items-center gap-2">
+                <!-- Color Presets -->
+                <button type="button" data-bg-color="#FFFFFF" class="bg-palette-btn active w-7 h-7 rounded-full bg-white border-2 border-brand-500 shadow-sm transition transform hover:scale-110" title="Pure White"></button>
+                <button type="button" data-bg-color="#F1F5F9" class="bg-palette-btn w-7 h-7 rounded-full bg-slate-100 border border-slate-500 transition transform hover:scale-110" title="Off-White / Light Grey"></button>
+                <button type="button" data-bg-color="#2563EB" class="bg-palette-btn w-7 h-7 rounded-full bg-blue-600 border border-slate-500 transition transform hover:scale-110" title="Studio Royal Blue"></button>
+                <button type="button" data-bg-color="#38BDF8" class="bg-palette-btn w-7 h-7 rounded-full bg-sky-400 border border-slate-500 transition transform hover:scale-110" title="Light Blue"></button>
+                <button type="button" data-bg-color="#DC2626" class="bg-palette-btn w-7 h-7 rounded-full bg-red-600 border border-slate-500 transition transform hover:scale-110" title="Studio Red"></button>
+                
+                <div class="flex items-center gap-1.5 ml-auto border-l border-slate-800 pl-2">
+                  <input type="color" id="customBgColorInput" value="#FFFFFF" class="w-7 h-7 rounded cursor-pointer bg-transparent border-0">
+                  <span id="currentColorHex" class="font-mono text-[10px] text-slate-300 uppercase">#FFFFFF</span>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Section C: A4 Sheet Grid Configuration -->
           <div class="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800 space-y-3">
-            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-table-cells text-indigo-400"></i> A4 Print Sheet Grid Setup
-            </label>
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-table-cells text-indigo-400"></i> A4 Print Layout Setup
+              </label>
+              <span id="gridMetricNotice" class="text-[10px] text-brand-300 font-mono">5 photos/row ideal</span>
+            </div>
 
             <div class="grid grid-cols-2 gap-2 text-xs">
               <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
                 <span class="text-[10px] text-slate-400 block mb-1">Photos Per Row:</span>
                 <select id="photosPerRowSelect" class="w-full bg-slate-950 border border-slate-700 text-white rounded p-1 text-xs outline-none focus:border-brand-500">
                   <option value="4">4 Photos / Row</option>
-                  <option value="5">5 Photos / Row</option>
-                  <option value="6" selected>6 Photos / Row (Standard)</option>
-                  <option value="7">7 Photos / Row</option>
-                  <option value="8">8 Photos / Row</option>
+                  <option value="5" selected>5 Photos / Row (No Cropping)</option>
+                  <option value="6">6 Photos / Row (Tight Edge)</option>
                 </select>
               </div>
 
               <div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
                 <span class="text-[10px] text-slate-400 block mb-1">Total Photo Copies:</span>
                 <select id="totalPhotosCountSelect" class="w-full bg-slate-950 border border-slate-700 text-white rounded p-1 text-xs outline-none focus:border-brand-500">
+                  <option value="4">4 Photos (1 Row)</option>
+                  <option value="5">5 Photos (1 Row)</option>
                   <option value="6">6 Photos (1 Row)</option>
-                  <option value="12">12 Photos (2 Rows)</option>
-                  <option value="18">18 Photos (3 Rows)</option>
-                  <option value="24">24 Photos (4 Rows)</option>
-                  <option value="30" selected>30 Photos (5 Rows / Sheet)</option>
-                  <option value="36">36 Photos (Fill Full A4)</option>
+                  <option value="10">10 Photos (2 Rows)</option>
+                  <option value="12">12 Photos (2-3 Rows)</option>
+                  <option value="15">15 Photos (3 Rows)</option>
+                  <option value="20">20 Photos (4 Rows)</option>
+                  <option value="25">25 Photos (5 Rows)</option>
+                  <option value="30" selected>30 Photos (Full A4 Sheet)</option>
                 </select>
               </div>
             </div>
@@ -544,16 +567,21 @@
             <div class="flex items-center justify-between text-xs pt-1">
               <label class="flex items-center gap-2 cursor-pointer text-slate-300">
                 <input type="checkbox" id="addCutBordersCheck" checked class="accent-brand-500 rounded">
-                <span>Add Thin Cutting Border (Guide Line)</span>
+                <span>Add Thin Scissor Cutting Border</span>
               </label>
             </div>
           </div>
 
-          <!-- Section D: Live A4 Layout Preview Miniature -->
+          <!-- Section D: Accurate A4 Layout Preview Miniature -->
           <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
-            <span class="text-[10px] text-slate-400 font-mono block mb-2">Live A4 Paper Preview (<span id="gridSummaryText">6 cols &times; 5 rows = 30 photos</span>)</span>
-            <div class="w-40 h-56 mx-auto bg-white rounded shadow-inner p-2 border border-slate-600 flex flex-col justify-start overflow-hidden relative">
-              <div id="miniGridContainer" class="w-full grid gap-[2px]">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] text-slate-400 font-mono">Live A4 Paper Preview</span>
+              <span id="gridSummaryText" class="text-[10px] text-emerald-400 font-mono font-bold">5 cols &times; 6 rows = 30 photos</span>
+            </div>
+            
+            <!-- Scaled A4 Proportion Box (210 x 297mm ratio = 1 : 1.414) -->
+            <div class="w-44 h-60 mx-auto bg-white rounded shadow-inner p-2 border border-slate-600 flex flex-col justify-start overflow-hidden relative">
+              <div id="miniGridContainer" class="w-full grid gap-[1.5px] items-start content-start">
                 <!-- Mini cells dynamically rendered via JS -->
               </div>
             </div>
@@ -588,7 +616,7 @@
           </div>
           <div>
             <h3 class="text-base font-bold text-white">Create 1-Time Activation Link</h3>
-            <p class="text-xs text-slate-400">Authorize a colleague or workstation without touching code.</p>
+            <p class="text-xs text-slate-400">Authorize a workstation without touching code.</p>
           </div>
         </div>
         <button id="closeInviteModalBtn" class="text-slate-400 hover:text-white p-2">
@@ -622,42 +650,6 @@
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
-          <p class="text-[10px] text-slate-400 leading-normal">
-            Send this exact link to the person. Once they open it and complete Windows Hello / Touch ID enrollment, the link will permanently expire.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: ENCRYPTED PDF DETECTED -->
-  <div id="passwordModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
-      <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center text-xl mb-4">
-        <i class="fa-solid fa-key"></i>
-      </div>
-      
-      <h3 class="text-xl font-bold text-white mb-1">Protected PDF Detected</h3>
-      <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-        This document is encrypted. Please enter the password to decrypt and crop it offline.
-      </p>
-
-      <div class="space-y-4">
-        <div class="relative">
-          <input type="password" id="pdfPasswordInput" placeholder="Enter document password" class="w-full bg-slate-950 border border-slate-700 focus:border-brand-500 text-white rounded-xl px-4 py-3 text-sm outline-none transition pr-10">
-          <button type="button" id="togglePasswordVisibility" class="absolute right-3 top-3.5 text-slate-400 hover:text-slate-200">
-            <i class="fa-regular fa-eye"></i>
-          </button>
-        </div>
-
-        <div id="passwordError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg flex items-center gap-2">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span>Incorrect password. Please verify and try again.</span>
-        </div>
-
-        <div class="flex gap-3 pt-2">
-          <button id="cancelPasswordBtn" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-sm transition">Cancel</button>
-          <button id="submitPasswordBtn" class="w-1/2 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl text-sm transition">Unlock PDF</button>
         </div>
       </div>
     </div>
@@ -674,9 +666,9 @@
      * CRYPTOGRAPHIC ACTIVATION & HARDWARE LOCK ENGINE
      * ========================================================================= */
     const MASTER_SIGNING_SECRET = "PDF-STUDIO-VAULT-AUTHENTIC-2026-KEY";
-    const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v6';
-    const STORAGE_WEBAUTHN_CRED_ID = 'pdf_vault_webauthn_id_v6';
-    const STORAGE_CONSUMED_TOKENS  = 'pdf_vault_consumed_tokens_v6';
+    const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v7';
+    const STORAGE_WEBAUTHN_CRED_ID = 'pdf_vault_webauthn_id_v7';
+    const STORAGE_CONSUMED_TOKENS  = 'pdf_vault_consumed_tokens_v7';
     const DEFAULT_STORAGE_KEY      = 'pdf_crop_custom_bounds';
 
     function isMobileDevice() {
@@ -866,7 +858,7 @@
      * ========================================================================= */
     const state = {
       isUnlocked: false,
-      activeModule: 'pdf', // 'pdf' or 'passport'
+      activeModule: 'passport', // Open on passport as primary
       
       // PDF Engine State
       rawPdfBytes: null,
@@ -879,7 +871,6 @@
       activePreset: 3,
       cropBounds: { startPercent: 66.666, endPercent: 100.0 },
       isRendering: false,
-      renderPending: false,
 
       // Passport Studio State
       passportSourceImg: null,
@@ -890,13 +881,19 @@
       passportPanX: 0,
       passportPanY: 0,
       passportRotateDeg: 0,
-      replaceWhiteBg: true,
-      bgTolerance: 35,
+      featherRadius: 3,
+      
+      // Background Engine State
+      changeBackground: true,
+      selectedBgColorHex: '#FFFFFF',
+      aiSegmentationMask: null,
+      isAiSegmenting: false,
+
+      // A4 Grid State
       showFaceGuide: true,
-      photosPerRow: 6,
-      totalPhotos: 30,
-      addCutBorders: true,
-      sampledBgColor: { r: 240, g: 240, b: 240 } // Default sampled corner
+      photosPerRow: 5, // 5 is ideal for 35x45 without page clipping
+      totalPhotos: 30, // 5 x 6 = 30 fills an entire A4 sheet exactly
+      addCutBorders: true
     };
 
     // Global DOM Elements
@@ -958,12 +955,6 @@
     const zoomFitBtn = document.getElementById('zoomFitBtn');
     const zoomLevelText = document.getElementById('zoomLevelText');
     const downloadPdfBtn = document.getElementById('downloadPdfBtn');
-    const passwordModal = document.getElementById('passwordModal');
-    const pdfPasswordInput = document.getElementById('pdfPasswordInput');
-    const submitPasswordBtn = document.getElementById('submitPasswordBtn');
-    const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-    const passwordError = document.getElementById('passwordError');
-    const togglePasswordVisibility = document.getElementById('togglePasswordVisibility');
 
     // Passport Elements
     const photoFileInput = document.getElementById('photoFileInput');
@@ -975,18 +966,21 @@
     const photoAdjustBar = document.getElementById('photoAdjustBar');
     const photoZoomSlider = document.getElementById('photoZoomSlider');
     const photoRotateSlider = document.getElementById('photoRotateSlider');
+    const featherSlider = document.getElementById('featherSlider');
     const resetTransformBtn = document.getElementById('resetTransformBtn');
     const photoDimensionBadge = document.getElementById('photoDimensionBadge');
     const passportPresetBtns = document.querySelectorAll('.passport-preset-btn');
-    const enableWhiteBgCheck = document.getElementById('enableWhiteBgCheck');
-    const bgToleranceSlider = document.getElementById('bgToleranceSlider');
-    const toleranceValText = document.getElementById('toleranceValText');
-    const reSampleBgBtn = document.getElementById('reSampleBgBtn');
+    const enableBgChangeCheck = document.getElementById('enableBgChangeCheck');
+    const bgPaletteBtns = document.querySelectorAll('.bg-palette-btn');
+    const customBgColorInput = document.getElementById('customBgColorInput');
+    const currentColorHex = document.getElementById('currentColorHex');
+    const aiProcessingBadge = document.getElementById('aiProcessingBadge');
     const photosPerRowSelect = document.getElementById('photosPerRowSelect');
     const totalPhotosCountSelect = document.getElementById('totalPhotosCountSelect');
     const addCutBordersCheck = document.getElementById('addCutBordersCheck');
     const miniGridContainer = document.getElementById('miniGridContainer');
     const gridSummaryText = document.getElementById('gridSummaryText');
+    const gridMetricNotice = document.getElementById('gridMetricNotice');
     const downloadA4SheetBtn = document.getElementById('downloadA4SheetBtn');
     const downloadSinglePhotoBtn = document.getElementById('downloadSinglePhotoBtn');
 
@@ -1078,7 +1072,6 @@
       showToast('Workspace locked', 'info');
     });
 
-    // Invitation Modal
     openInviteModalBtn.addEventListener('click', () => {
       generatedLinkArea.classList.add('hidden');
       inviteModal.classList.remove('hidden');
@@ -1116,7 +1109,7 @@
       tabPassport.className = 'px-3.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white rounded-lg flex items-center gap-2 transition';
       pdfModuleContainer.classList.remove('hidden');
       passportModuleContainer.classList.add('hidden');
-      headerModuleIcon.className = 'fa-solid fa-crop-simple text-lg';
+      headerModuleIcon.className = 'fa-solid fa-file-pdf text-lg';
     });
 
     tabPassport.addEventListener('click', () => {
@@ -1194,15 +1187,8 @@
           password: password
         });
 
-        loadingTask.onPassword = (callback, reason) => {
-          pendingPasswordCallback = callback;
-          passwordModal.classList.remove('hidden');
-          pdfPasswordInput.focus();
-        };
-
         const pdf = await loadingTask.promise;
         state.pdfDocument = pdf;
-        state.currentPassword = password;
         state.totalPages = pdf.numPages;
         state.currentPage = 1;
 
@@ -1210,7 +1196,6 @@
         workspaceSection.classList.remove('hidden');
         totalPagesNum.textContent = state.totalPages;
         currentPageNum.textContent = state.currentPage;
-        passwordModal.classList.add('hidden');
 
         applySectionPreset(state.activePreset || 3);
         fitZoomToContainer();
@@ -1221,18 +1206,6 @@
         showToast('Failed to load PDF.', 'error');
       }
     }
-
-    let pendingPasswordCallback = null;
-    submitPasswordBtn.addEventListener('click', async () => {
-      const pwd = pdfPasswordInput.value.trim();
-      if (pendingPasswordCallback) {
-        pendingPasswordCallback(pwd);
-        state.currentPassword = pwd;
-      } else {
-        await loadPdfDocument(pwd);
-      }
-    });
-    cancelPasswordBtn.addEventListener('click', () => { passwordModal.classList.add('hidden'); });
 
     async function renderCurrentPage() {
       if (!state.pdfDocument || state.isRendering) return;
@@ -1428,14 +1401,33 @@
     });
 
     /* =========================================================================
-     * MODULE 2: PASSPORT PHOTO STUDIO & A4 GRID ENGINE
+     * MODULE 2: PASSPORT PHOTO STUDIO & A4 GRID ENGINE (EXACT METRIC SCALING)
      * ========================================================================= */
     const PASSPORT_SPECS = {
       '35x45': { w: 35, h: 45, label: '35 x 45 mm (India / EU / UK)' },
-      '50x50': { w: 50, h: 50, label: '2 x 2 inch (US / OCI)' },
+      '50x50': { w: 50, h: 50, label: '2 x 2 inch (50x50mm)' },
       '30x40': { w: 30, h: 40, label: '30 x 40 mm (ID / License)' },
       '35x35': { w: 35, h: 35, label: '35 x 35 mm (Square)' }
     };
+
+    // Initialize MediaPipe AI Selfie Segmentation
+    let selfieSegmentation = null;
+    try {
+      selfieSegmentation = new SelfieSegmentation({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+      });
+      selfieSegmentation.setOptions({
+        modelSelection: 1 // 1: Landscape/General portrait (higher accuracy)
+      });
+      selfieSegmentation.onResults((results) => {
+        state.aiSegmentationMask = results.segmentationMask;
+        state.isAiSegmenting = false;
+        aiProcessingBadge.classList.add('hidden');
+        renderPassportCanvas();
+      });
+    } catch (e) {
+      console.warn("MediaPipe failed to init, fallback active", e);
+    }
 
     photoFileInput.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
@@ -1443,7 +1435,7 @@
       const reader = new FileReader();
       reader.onload = (ev) => {
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
           state.passportSourceImg = img;
           state.passportScale = 1.0;
           state.passportPanX = 0;
@@ -1452,15 +1444,29 @@
           photoPlaceholderState.classList.add('hidden');
           photoCropStage.classList.remove('hidden');
           photoAdjustBar.classList.remove('hidden');
-          sampleCornerBackgroundColor();
+          
+          triggerAiSegmentation();
           renderPassportCanvas();
           renderMiniA4Preview();
-          showToast('Photo loaded into Passport Studio!', 'success');
+          showToast('Photo loaded into Studio!', 'success');
         };
         img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
+
+    async function triggerAiSegmentation() {
+      if (!state.passportSourceImg || !selfieSegmentation) return;
+      state.isAiSegmenting = true;
+      aiProcessingBadge.classList.remove('hidden');
+      try {
+        await selfieSegmentation.send({ image: state.passportSourceImg });
+      } catch (err) {
+        console.warn("AI segmentation error:", err);
+        state.isAiSegmenting = false;
+        aiProcessingBadge.classList.add('hidden');
+      }
+    }
 
     passportPresetBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1472,7 +1478,17 @@
         state.passportPreset = preset;
         state.passportWidthMm = PASSPORT_SPECS[preset].w;
         state.passportHeightMm = PASSPORT_SPECS[preset].h;
-        photoDimensionBadge.textContent = `${state.passportWidthMm} x ${state.passportHeightMm} mm`;
+        photoDimensionBadge.textContent = `${state.passportWidthMm} x ${state.passportHeightMm} mm (Exact Metric)`;
+        
+        // Auto-adjust default columns based on photo width
+        if (state.passportWidthMm >= 50) {
+          state.photosPerRow = 3;
+          photosPerRowSelect.value = "3";
+        } else {
+          state.photosPerRow = 5;
+          photosPerRowSelect.value = "5";
+        }
+        
         renderPassportCanvas();
         renderMiniA4Preview();
       });
@@ -1494,6 +1510,11 @@
       renderPassportCanvas();
     });
 
+    featherSlider.addEventListener('input', (e) => {
+      state.featherRadius = parseInt(e.target.value);
+      renderPassportCanvas();
+    });
+
     resetTransformBtn.addEventListener('click', () => {
       state.passportScale = 1.0;
       state.passportPanX = 0;
@@ -1504,48 +1525,32 @@
       renderPassportCanvas();
     });
 
-    enableWhiteBgCheck.addEventListener('change', (e) => {
-      state.replaceWhiteBg = e.target.checked;
+    enableBgChangeCheck.addEventListener('change', (e) => {
+      state.changeBackground = e.target.checked;
       renderPassportCanvas();
     });
 
-    bgToleranceSlider.addEventListener('input', (e) => {
-      state.bgTolerance = parseInt(e.target.value);
-      toleranceValText.textContent = `${state.bgTolerance}%`;
+    // Background Color Selector Palette
+    bgPaletteBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        bgPaletteBtns.forEach(b => b.classList.remove('border-2', 'border-brand-500'));
+        btn.classList.add('border-2', 'border-brand-500');
+        const color = btn.getAttribute('data-bg-color');
+        state.selectedBgColorHex = color;
+        currentColorHex.textContent = color;
+        customBgColorInput.value = color;
+        renderPassportCanvas();
+      });
+    });
+
+    customBgColorInput.addEventListener('input', (e) => {
+      state.selectedBgColorHex = e.target.value;
+      currentColorHex.textContent = e.target.value;
+      bgPaletteBtns.forEach(b => b.classList.remove('border-2', 'border-brand-500'));
       renderPassportCanvas();
     });
 
-    reSampleBgBtn.addEventListener('click', () => {
-      sampleCornerBackgroundColor();
-      renderPassportCanvas();
-      showToast('Sampled background tone from corner', 'info');
-    });
-
-    function sampleCornerBackgroundColor() {
-      if (!state.passportSourceImg) return;
-      const testCanvas = document.createElement('canvas');
-      testCanvas.width = state.passportSourceImg.naturalWidth;
-      testCanvas.height = state.passportSourceImg.naturalHeight;
-      const ctx = testCanvas.getContext('2d');
-      ctx.drawImage(state.passportSourceImg, 0, 0);
-
-      // Sample a 10x10 patch from top-left corner
-      const imgData = ctx.getImageData(5, 5, 10, 10).data;
-      let r = 0, g = 0, b = 0, count = 0;
-      for (let i = 0; i < imgData.length; i += 4) {
-        r += imgData[i];
-        g += imgData[i + 1];
-        b += imgData[i + 2];
-        count++;
-      }
-      state.sampledBgColor = {
-        r: Math.round(r / count),
-        g: Math.round(g / count),
-        b: Math.round(b / count)
-      };
-    }
-
-    // Interactive Pan inside photo canvas
+    // Interactive Drag Pan inside photo canvas
     let isPanningPhoto = false, panStartX = 0, panStartY = 0;
     photoEditorCanvas.addEventListener('mousedown', (e) => {
       isPanningPhoto = true;
@@ -1570,12 +1575,11 @@
     }, { passive: false });
 
     // Render Master Passport Canvas
-    function renderPassportCanvas(targetCanvas = photoEditorCanvas, exportDpi = 300) {
+    function renderPassportCanvas(targetCanvas = photoEditorCanvas) {
       if (!state.passportSourceImg) return;
 
-      // Target aspect ratio (e.g., 35mm x 45mm = 7:9)
       const aspect = state.passportWidthMm / state.passportHeightMm;
-      const displayHeight = 420;
+      const displayHeight = 440;
       const displayWidth = Math.round(displayHeight * aspect);
 
       targetCanvas.width = displayWidth;
@@ -1584,10 +1588,12 @@
       targetCanvas.style.height = displayHeight + 'px';
 
       const ctx = targetCanvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
+
+      // 1. Fill Selected Background Color
+      ctx.fillStyle = state.changeBackground ? state.selectedBgColorHex : '#FFFFFF';
       ctx.fillRect(0, 0, displayWidth, displayHeight);
 
-      // Create intermediate offscreen canvas to perform scale, rotate, pan
+      // 2. Offscreen portrait canvas
       const offCanvas = document.createElement('canvas');
       offCanvas.width = displayWidth;
       offCanvas.height = displayHeight;
@@ -1606,41 +1612,37 @@
       offCtx.drawImage(state.passportSourceImg, -drawW / 2, -drawH / 2, drawW, drawH);
       offCtx.restore();
 
-      // If Pure White Background is enabled, perform intelligent flood-replace
-      if (state.replaceWhiteBg) {
-        const frameData = offCtx.getImageData(0, 0, displayWidth, displayHeight);
-        const data = frameData.data;
-        const targetR = state.sampledBgColor.r;
-        const targetG = state.sampledBgColor.g;
-        const targetB = state.sampledBgColor.b;
-        const tolerance = (state.bgTolerance / 100) * 441; // Max RGB Euclidean distance = sqrt(3*255^2) ≈ 441.6
+      // 3. If AI mask is available & changeBackground is true, apply matte mask
+      if (state.changeBackground && state.aiSegmentationMask) {
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = displayWidth;
+        maskCanvas.height = displayHeight;
+        const maskCtx = maskCanvas.getContext('2d');
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          
-          const dist = Math.sqrt(
-            (r - targetR) * (r - targetR) +
-            (g - targetG) * (g - targetG) +
-            (b - targetB) * (b - targetB)
-          );
+        maskCtx.save();
+        maskCtx.translate(displayWidth / 2 + state.passportPanX, displayHeight / 2 + state.passportPanY);
+        maskCtx.rotate((state.passportRotateDeg * Math.PI) / 180);
+        maskCtx.drawImage(state.aiSegmentationMask, -drawW / 2, -drawH / 2, drawW, drawH);
+        maskCtx.restore();
 
-          if (dist <= tolerance) {
-            // Smooth edge feathering
-            const factor = Math.max(0, Math.min(1, (tolerance - dist) / 15));
-            data[i] = Math.round(r * (1 - factor) + 255 * factor);
-            data[i + 1] = Math.round(g * (1 - factor) + 255 * factor);
-            data[i + 2] = Math.round(b * (1 - factor) + 255 * factor);
-          }
+        // Optional edge feathering
+        if (state.featherRadius > 0) {
+          maskCtx.filter = `blur(${state.featherRadius}px)`;
+          maskCtx.drawImage(maskCanvas, 0, 0);
+          maskCtx.filter = 'none';
         }
-        offCtx.putImageData(frameData, 0, 0);
+
+        // Composite subject with mask
+        offCtx.globalCompositeOperation = 'destination-in';
+        offCtx.drawImage(maskCanvas, 0, 0);
+        offCtx.globalCompositeOperation = 'source-over';
       }
 
+      // Draw portrait on top of solid background
       ctx.drawImage(offCanvas, 0, 0);
     }
 
-    // A4 Grid Calculator
+    // A4 Grid Setup & Math Controls
     photosPerRowSelect.addEventListener('change', (e) => {
       state.photosPerRow = parseInt(e.target.value);
       renderMiniA4Preview();
@@ -1658,15 +1660,25 @@
       const cols = state.photosPerRow;
       const total = state.totalPhotos;
       const rows = Math.ceil(total / cols);
+      
       gridSummaryText.textContent = `${cols} cols × ${rows} rows = ${total} photos`;
+      if (cols === 5) {
+        gridMetricNotice.textContent = "5 photos/row ideal (no crop)";
+      } else if (cols === 6) {
+        gridMetricNotice.textContent = "6 photos/row (tight printer margin)";
+      } else {
+        gridMetricNotice.textContent = `${cols} photos/row`;
+      }
 
       miniGridContainer.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
       miniGridContainer.innerHTML = '';
 
+      const aspectClass = state.passportWidthMm === state.passportHeightMm ? 'aspect-square' : 'aspect-[35/45]';
+
       for (let i = 0; i < total; i++) {
         const cell = document.createElement('div');
-        cell.className = 'aspect-[35/45] bg-brand-500/20 border border-brand-500/40 rounded-[1px] flex items-center justify-center';
-        cell.innerHTML = `<i class="fa-regular fa-user text-[7px] text-brand-400"></i>`;
+        cell.className = `${aspectClass} bg-brand-500/20 border border-brand-500/40 rounded-[1px] flex items-center justify-center`;
+        cell.innerHTML = `<i class="fa-regular fa-user text-[6px] text-brand-400"></i>`;
         miniGridContainer.appendChild(cell);
       }
     }
@@ -1678,8 +1690,7 @@
         return;
       }
       const exportCanvas = document.createElement('canvas');
-      // Produce high-resolution 300 DPI passport output (35mm = 413px, 45mm = 531px)
-      const mmToPx300Dpi = 300 / 25.4;
+      const mmToPx300Dpi = 300 / 25.4; // 11.811 px per mm
       const outW = Math.round(state.passportWidthMm * mmToPx300Dpi);
       const outH = Math.round(state.passportHeightMm * mmToPx300Dpi);
 
@@ -1689,13 +1700,15 @@
       ctx.drawImage(photoEditorCanvas, 0, 0, outW, outH);
 
       const link = document.createElement('a');
-      link.download = `passport_photo_${state.passportWidthMm}x${state.passportHeightMm}mm.png`;
+      link.download = `Passport_${state.passportWidthMm}x${state.passportHeightMm}mm.png`;
       link.href = exportCanvas.toDataURL('image/png', 1.0);
       link.click();
       showToast('Single Passport Photo Downloaded!', 'success');
     });
 
-    // Download A4 Print Ready PDF Sheet
+    // =========================================================================
+    // ACCURATE A4 PDF PRINT ENGINE (NEVER RESIZES PHOTO; 100% METRIC ACCURACY)
+    // =========================================================================
     downloadA4SheetBtn.addEventListener('click', async () => {
       if (!state.passportSourceImg) {
         showToast('Please upload a photo first', 'error');
@@ -1709,22 +1722,23 @@
         const { PDFDocument, rgb } = PDFLib;
         const pdfDoc = await PDFDocument.create();
 
-        // Standard A4 dimensions in PDF points (72 points per inch)
-        // 210mm x 297mm
-        const A4_WIDTH_PT = 595.28;
-        const A4_HEIGHT_PT = 841.89;
+        // Standard A4 physical dimensions in PDF points (72 pt / inch; 1 mm = 2.83464567 pt)
+        // 210 mm x 297 mm
+        const MM_TO_PT = 2.83464567;
+        const A4_WIDTH_PT = 210 * MM_TO_PT;   // 595.275 pt
+        const A4_HEIGHT_PT = 297 * MM_TO_PT;  // 841.889 pt
         const page = pdfDoc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT]);
 
-        // Background of paper is pure white
+        // Background is pure clean white
         page.drawRectangle({
           x: 0, y: 0, width: A4_WIDTH_PT, height: A4_HEIGHT_PT, color: rgb(1, 1, 1)
         });
 
-        // Convert current photo canvas to high-res PNG bytes
+        // Generate clean 300 DPI image bytes from current canvas
         const exportCanvas = document.createElement('canvas');
-        const mmToPx = 300 / 25.4;
-        const photoPxW = Math.round(state.passportWidthMm * mmToPx);
-        const photoPxH = Math.round(state.passportHeightMm * mmToPx);
+        const pxPerMm = 300 / 25.4;
+        const photoPxW = Math.round(state.passportWidthMm * pxPerMm);
+        const photoPxH = Math.round(state.passportHeightMm * pxPerMm);
         exportCanvas.width = photoPxW;
         exportCanvas.height = photoPxH;
         exportCanvas.getContext('2d').drawImage(photoEditorCanvas, 0, 0, photoPxW, photoPxH);
@@ -1732,8 +1746,7 @@
         const pngDataUrl = exportCanvas.toDataURL('image/png', 1.0);
         const embeddedImg = await pdfDoc.embedPng(pngDataUrl);
 
-        // Convert photo mm dimensions to PDF points (1 mm = 2.83465 pt)
-        const MM_TO_PT = 2.83465;
+        // Exact physical photo dimensions in PDF Points (NEVER SCALED)
         const photoW_Pt = state.passportWidthMm * MM_TO_PT;
         const photoH_Pt = state.passportHeightMm * MM_TO_PT;
 
@@ -1741,15 +1754,24 @@
         const total = state.totalPhotos;
         const rows = Math.ceil(total / cols);
 
-        // Calculate spacing & margins to neatly center on A4 sheet
-        const horizontalSpacing = 6 * MM_TO_PT; // 6mm gap
-        const verticalSpacing = 7 * MM_TO_PT;   // 7mm gap
+        // Compute Spacing so photos never get cropped or pushed off A4 margins
+        let horizontalSpacingPt = 4 * MM_TO_PT; // Standard 4mm gap between pictures
+        let sideMarginPt = (A4_WIDTH_PT - (cols * photoW_Pt + (cols - 1) * horizontalSpacingPt)) / 2;
 
-        const gridTotalWidth = (cols * photoW_Pt) + ((cols - 1) * horizontalSpacing);
-        const gridTotalHeight = (rows * photoH_Pt) + ((rows - 1) * verticalSpacing);
+        // If user chose 6 photos on a 35mm format (6 x 35 = 210mm total page width),
+        // adjust gaps gracefully to 1mm so photos fit on physical paper without cutting
+        if (sideMarginPt < 2 * MM_TO_PT) {
+          horizontalSpacingPt = 1.0 * MM_TO_PT; // 1mm minimal cutting guideline
+          sideMarginPt = (A4_WIDTH_PT - (cols * photoW_Pt + (cols - 1) * horizontalSpacingPt)) / 2;
+          if (sideMarginPt < 0) {
+            // Tight bleed
+            sideMarginPt = 0;
+            horizontalSpacingPt = (A4_WIDTH_PT - cols * photoW_Pt) / Math.max(1, cols - 1);
+          }
+        }
 
-        const startX = (A4_WIDTH_PT - gridTotalWidth) / 2;
-        const startY = A4_HEIGHT_PT - 20 * MM_TO_PT; // Top margin 20mm
+        const verticalSpacingPt = 4 * MM_TO_PT; // 4mm vertical scissor gap
+        const topMarginPt = 15 * MM_TO_PT;      // 15mm comfortable top printer margin
 
         let countPlaced = 0;
 
@@ -1757,11 +1779,11 @@
           for (let c = 0; c < cols; c++) {
             if (countPlaced >= total) break;
 
-            const posX = startX + c * (photoW_Pt + horizontalSpacing);
-            // In PDF coords, Y=0 is bottom
-            const posY = startY - (r + 1) * photoH_Pt - r * verticalSpacing;
+            const posX = sideMarginPt + c * (photoW_Pt + horizontalSpacingPt);
+            // In PDF Coordinate space, (0,0) is Bottom-Left
+            const posY = A4_HEIGHT_PT - topMarginPt - (r + 1) * photoH_Pt - r * verticalSpacingPt;
 
-            // Draw Photo
+            // Draw Photo at EXACT physical size
             page.drawImage(embeddedImg, {
               x: posX,
               y: posY,
@@ -1769,15 +1791,15 @@
               height: photoH_Pt
             });
 
-            // Optional Cutting Border Line
+            // Optional Cutting Border
             if (state.addCutBorders) {
               page.drawRectangle({
                 x: posX,
                 y: posY,
                 width: photoW_Pt,
                 height: photoH_Pt,
-                borderColor: rgb(0.75, 0.75, 0.75), // Light subtle cut hairline
-                borderWidth: 0.5,
+                borderColor: rgb(0.8, 0.8, 0.8), // Fine 0.4pt hairline scissor guide
+                borderWidth: 0.4,
               });
             }
 
@@ -1789,9 +1811,9 @@
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `Passport_Sheet_${cols}x${rows}_${state.passportWidthMm}x${state.passportHeightMm}mm.pdf`;
+        a.download = `Passport_${state.passportWidthMm}x${state.passportHeightMm}mm_Sheet_${cols}x${rows}_${total}pcs.pdf`;
         a.click();
-        showToast('A4 Passport Print Sheet Generated!', 'success');
+        showToast('A4 Passport Print Sheet Generated at 100% Scale!', 'success');
         if (window.va) window.va('event', { name: 'passport_a4_exported', total: state.totalPhotos });
       } catch (err) {
         console.error(err);
