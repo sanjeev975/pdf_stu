@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Precision Studio - Hardware Vault</title>
+  <title>PDF Studio - Hardware Vault</title>
   
   <!-- Vercel Web Analytics for Plain HTML Sites -->
   <script>
@@ -196,7 +196,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            PDF Precision Studio
+            PDF Studio
             <span id="sessionStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
               <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified
             </span>
@@ -694,7 +694,7 @@
     /* =========================================================================
      * TRIAL COUNTER CONFIGURATION: CHANGE THIS VALUE TO MODIFY ALLOWED TRIALS
      * ========================================================================= */
-    const MAX_TRIAL_USES           = 3; // <-- Change to 5, 10, etc. as desired
+    const MAX_TRIAL_USES           = 5; // 
 
     function isMobileDevice() {
       const ua = navigator.userAgent || navigator.vendor || window.opera;
@@ -1276,7 +1276,7 @@
     // Order Via WhatsApp
     orderViaWhatsAppBtn.addEventListener('click', () => {
       const message = encodeURIComponent(
-        `Hello Admin! I would like to subscribe to PDF Precision Studio.\n\n` +
+        `Hello Admin! I would like to subscribe to PDF Studio.\n\n` +
         `• Plan: ${currentSelectedPlan.duration}\n` +
         `• Price: ₹${currentSelectedPlan.price}\n\n` +
         `Please share the payment details and my 1-Time PC activation link.`
@@ -1288,7 +1288,7 @@
 
     // Copy Plan Details to Clipboard
     copyPlanDetailsBtn.addEventListener('click', async () => {
-      const summaryText = `PDF Precision Studio Subscription Inquiry:\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}\nFeatures: Unlimited PDF Crops, Dedicated Hardware PC Auth`;
+      const summaryText = `PDF Studio Subscription Inquiry:\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}\nFeatures: Unlimited PDF Crops, Dedicated Hardware PC Auth`;
       try {
         await navigator.clipboard.writeText(summaryText);
         copyPlanDetailsBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
@@ -1300,7 +1300,7 @@
     });
 
     /* =========================================================================
-     * PDF PRECISION CROP STUDIO LOGIC
+     * PDF CROP STUDIO LOGIC
      * ========================================================================= */
     const SECTION_PRESETS = {
       1: { start: 0.0, end: 33.333, label: 'Section 1 (Top 1/3)' },
