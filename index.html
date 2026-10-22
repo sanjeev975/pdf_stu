@@ -460,6 +460,9 @@
             <button id="copyTrialLinkBtn" class="shrink-0 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
+            <button id="openShortenerBtn" class="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition" title="Shorten with TinyURL in 1 click">
+              <i class="fa-solid fa-scissors"></i> Shorten
+            </button>
           </div>
           <p class="text-[11px] text-slate-400">Users can open this on any desktop browser to crop and export up to 3 times before being prompted to subscribe.</p>
         </div>
@@ -571,7 +574,7 @@
       return bufferToBase64(signature);
     }
 
-    /* --- Permanent 1-Time Token (Existing feature preserved) --- */
+    /* --- Permanent 1-Time Token --- */
     async function createSignedActivationToken(validHours = 24) {
       const payload = {
         type: 'permanent_enroll',
@@ -584,7 +587,7 @@
       return `${payloadB64}.${sig}`;
     }
 
-    /* --- Public 3-Trial Token (New feature) --- */
+    /* --- Public 3-Trial Token --- */
     async function createSignedTrialToken(validHours = 168) {
       const payload = {
         type: 'public_trial',
@@ -805,6 +808,7 @@
     const generatedTrialArea = document.getElementById('generatedTrialArea');
     const generatedTrialInput = document.getElementById('generatedTrialInput');
     const copyTrialLinkBtn = document.getElementById('copyTrialLinkBtn');
+    const openShortenerBtn = document.getElementById('openShortenerBtn');
 
     // Header & Paywall Badges
     const sessionStatusBadge = document.getElementById('sessionStatusBadge');
@@ -862,7 +866,7 @@
     }
 
     function checkTrialLimitOrShowPaywall() {
-      if (!state.isTrial) return false; // Master admin / permanent hardware users never blocked
+      if (!state.isTrial) return false;
       const used = getTrialUsageCount();
       if (used >= MAX_TRIAL_USES) {
         subscriptionModal.classList.remove('hidden');
@@ -894,7 +898,6 @@
       if (trialToken) {
         const verification = await verifyToken(trialToken);
         if (verification.valid && verification.payload.type === 'public_trial') {
-          // Open directly in Trial Mode without hardware challenge
           unlockWorkspace(true);
           updateTrialBadgeDisplay();
           showToast(`Welcome! Free Trial active (${Math.max(0, MAX_TRIAL_USES - getTrialUsageCount())} exports remaining)`, 'info');
@@ -955,7 +958,6 @@
         trialHeaderBadge.classList.remove('hidden');
         trialHeaderBadge.classList.add('flex');
         updateTrialBadgeDisplay();
-        // Hide Admin Generation buttons for trial users
         openInviteModalBtn.classList.add('hidden');
         openTrialModalBtn.classList.add('hidden');
       } else {
@@ -1035,6 +1037,12 @@
         document.execCommand('copy');
         showToast('Trial link copied!', 'info');
       }
+    });
+
+    openShortenerBtn.addEventListener('click', () => {
+      const longUrl = encodeURIComponent(generatedTrialInput.value);
+      window.open(`https://tinyurl.com/create.php?url=${longUrl}`, '_blank');
+      showToast('Opened TinyURL Generator in new tab.', 'info');
     });
 
     closeSubModalBtn.addEventListener('click', () => {
