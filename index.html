@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Precision Studio - Hardware Vault</title>
+  <title>PDF Precision Studio &bull; Automated Enterprise Vault</title>
   
-  <!-- Vercel Web Analytics for Plain HTML Sites -->
+  <!-- Vercel Web Analytics -->
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
@@ -13,8 +13,14 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome for Icons -->
+  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDKs (Compat version for pure single-file client web app) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
   <!-- pdf-lib for pure client-side PDF manipulation -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <!-- PDF.js for canvas rendering & preview -->
@@ -40,6 +46,7 @@
     };
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
+
   <style>
     /* Custom refined scrollbars */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -89,13 +96,6 @@
     .drag-region-body:active {
       cursor: grabbing;
     }
-    @keyframes pulseGlow {
-      0%, 100% { opacity: 0.35; transform: scale(1); }
-      50% { opacity: 0.6; transform: scale(1.08); }
-    }
-    .animate-pulse-glow {
-      animation: pulseGlow 4s ease-in-out infinite;
-    }
     .plan-card.active-plan {
       border-color: #6366f1;
       background-color: rgba(99, 102, 241, 0.12);
@@ -106,429 +106,325 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
   <!-- ========================================================================= -->
-  <!-- HARDWARE WEBAUTHN SHIELD SCREEN                                           -->
+  <!-- TOP GLOBAL HEADER                                                         -->
   <!-- ========================================================================= -->
-  <div id="cryptoShield" class="fixed inset-0 bg-slate-950 z-[100] flex items-center justify-center p-4">
-    <div class="absolute -top-32 -right-32 w-80 h-80 bg-brand-600/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"></div>
-    <div class="absolute -bottom-32 -left-32 w-80 h-80 bg-indigo-600/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"></div>
-
-    <div class="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 sm:p-9 max-w-md w-full shadow-2xl relative backdrop-blur-xl">
-      <div class="text-center">
-        <div id="shieldIconContainer" class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center text-2xl shadow-xl shadow-brand-500/25">
-          <i class="fa-solid fa-fingerprint"></i>
-        </div>
-
-        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-semibold mb-3">
-          <i class="fa-solid fa-shield-halved"></i>
-          <span id="shieldSecurityLabel">Strict Hardware Lockdown</span>
-        </div>
-
-        <h2 id="shieldHeading" class="text-xl sm:text-2xl font-bold text-white mb-2 tracking-tight">Authorized PC Verification</h2>
-        <p id="shieldSubheading" class="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
-          Access is restricted to authorized workstations. Hardware biometric challenge required.
-        </p>
-
-        <!-- Blocked / Unauthorized Notice (Shown to random public visitors without token) -->
-        <div id="deviceBlockedNotice" class="hidden text-xs text-rose-300 bg-rose-500/15 border border-rose-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
-          <div class="font-bold flex items-center gap-2 text-rose-400">
-            <i class="fa-solid fa-ban"></i> Access Denied: Unauthorized Device
-          </div>
-          <p id="deviceBlockedReason" class="text-[11px] text-slate-300 leading-normal">
-            This workstation does not have a verified hardware passkey. Access requires an official single-use invitation or public trial link.
-          </p>
-        </div>
-
-        <!-- Single-Use Activation Badge (Only visible when a valid signed token is present) -->
-        <div id="invitationDetectedBanner" class="hidden text-xs text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
-          <div class="font-bold flex items-center gap-2 text-emerald-400">
-            <i class="fa-solid fa-key"></i> Single-Use Activation Key Valid
-          </div>
-          <p class="text-[11px] text-slate-300 leading-normal">
-            Click below to register this PC. This activation link will permanently expire upon registration.
-          </p>
-        </div>
-
-        <!-- Action Buttons -->
-        <div id="passkeySection" class="space-y-3 mb-4">
-          <!-- Unlock with Passkey (Only shown if this PC is already enrolled) -->
-          <button 
-            type="button" 
-            id="passkeyAuthBtn"
-            class="hidden w-full py-3.5 px-4 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/30 transition duration-200 flex items-center justify-center gap-2.5 active:scale-[0.98]"
-          >
-            <i class="fa-solid fa-fingerprint text-base"></i>
-            <span id="passkeyBtnText">Unlock with Windows Hello / Touch ID</span>
-          </button>
-
-          <!-- Register This PC (STRICTLY HIDDEN unless valid ?activate= token is provided) -->
-          <button 
-            type="button" 
-            id="enrollDeviceBtn"
-            class="hidden w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20"
-          >
-            <i class="fa-solid fa-laptop-medical"></i>
-            <span>Register & Authorize This PC</span>
-          </button>
-        </div>
-
-        <div id="cryptoError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center justify-center gap-2 mb-3">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span id="cryptoErrorText">Hardware verification rejected.</span>
-        </div>
-
-        <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-          <span id="deviceRegistrationBadge" class="flex items-center gap-1.5 text-slate-400">
-            <i class="fa-solid fa-lock text-rose-400"></i> Protected Workstation
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-layer-group text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          PDF Precision Studio
+          <span id="headerPlanBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+            Checking Status...
           </span>
-          <span class="text-[10px] text-slate-500 font-mono">v7.4-locked</span>
+        </h1>
+        <p class="text-xs text-slate-400 hidden sm:block">Automated Cloud Auth &bull; 100% Private Client-Side Processing</p>
+      </div>
+    </div>
+
+    <!-- Quick User / Admin Controls -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Admin Portal Trigger Button (Shown when admin logs in) -->
+      <button id="openAdminPortalBtn" class="hidden text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-xl border border-indigo-500/40 transition flex items-center gap-1.5 font-semibold">
+        <i class="fa-solid fa-shield-halved text-brand-400"></i>
+        <span>Admin Panel</span>
+      </button>
+
+      <!-- Pricing Plans Button -->
+      <button id="openPricingBtn" class="text-xs bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/30 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-crown text-amber-400"></i>
+        <span class="font-semibold">Plans</span>
+      </button>
+
+      <!-- User Account / Log In State -->
+      <div id="authContainer">
+        <!-- Log In Button (Shown when guest) -->
+        <button id="headerLoginBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 font-medium">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+          <span>Log In</span>
+        </button>
+
+        <!-- User Profile Pill (Shown when signed in) -->
+        <div id="userProfilePill" class="hidden items-center gap-2 bg-slate-800/80 border border-slate-700/80 rounded-xl px-2.5 py-1">
+          <div class="w-6 h-6 rounded-lg bg-indigo-600/30 text-indigo-300 flex items-center justify-center text-[10px] font-bold">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          <span id="userEmailDisplay" class="text-xs text-slate-300 font-mono max-w-[130px] truncate">user@email.com</span>
+          <button id="headerLogoutBtn" class="text-slate-400 hover:text-rose-400 text-xs ml-1 transition" title="Log Out">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
         </div>
       </div>
     </div>
-  </div>
+  </header>
 
   <!-- ========================================================================= -->
-  <!-- MAIN APPLICATION                                                          -->
+  <!-- MAIN WORKSPACE                                                            -->
   <!-- ========================================================================= -->
-  <div id="appContainer" class="hidden flex-1 flex flex-col min-h-screen">
-    <!-- HEADER -->
-    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-          <i class="fa-solid fa-layer-group text-lg"></i>
+  <main class="flex-1 flex flex-col overflow-hidden max-w-7xl w-full mx-auto p-3 sm:p-5">
+    
+    <!-- TRIAL / EXPIRATION NOTICE BANNER -->
+    <div id="statusNoticeBanner" class="hidden mb-3 text-xs p-3 rounded-2xl flex items-center justify-between gap-3 shadow-lg">
+      <div class="flex items-center gap-2">
+        <i id="statusNoticeIcon" class="fa-solid fa-circle-info"></i>
+        <span id="statusNoticeText" class="font-medium">Notice message here</span>
+      </div>
+      <button id="statusNoticeActionBtn" class="text-[11px] font-bold px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 transition whitespace-nowrap">
+        Upgrade Now
+      </button>
+    </div>
+
+    <!-- UPLOAD HERO STATE -->
+    <section id="uploadSection" class="flex-1 flex flex-col justify-center items-center py-10">
+      <div id="dropZone" class="w-full max-w-2xl bg-slate-900/50 hover:bg-slate-900/90 border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all duration-300 shadow-2xl relative group">
+        <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+        
+        <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-brand-400 group-hover:scale-110 group-hover:bg-brand-500 group-hover:text-white transition duration-300 shadow-inner">
+          <i class="fa-solid fa-file-arrow-up text-3xl"></i>
         </div>
-        <div>
-          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            PDF Precision Studio
-            <span id="sessionStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-              <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified
+
+        <h2 class="text-2xl font-bold text-white mb-2">Drag & Drop your PDF here</h2>
+        <p class="text-slate-400 text-sm max-w-md mx-auto mb-6 leading-relaxed">
+          100% Client-Side. Adjust section boundaries directly on the interactive preview and download your cropped document.
+        </p>
+
+        <button type="button" class="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-semibold shadow-lg shadow-indigo-600/30 transition inline-flex items-center gap-2">
+          <i class="fa-regular fa-folder-open"></i> Browse PDF Files
+        </button>
+      </div>
+    </section>
+
+    <!-- ACTIVE EDITING WORKSPACE -->
+    <div id="workspaceSection" class="hidden flex-1 flex flex-col lg:flex-row gap-5 h-[calc(100vh-6.2rem)] overflow-hidden">
+      
+      <!-- LEFT: CANVAS PREVIEW -->
+      <section class="flex-1 flex flex-col bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden shadow-xl min-w-0">
+        <div class="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center space-x-1.5">
+            <button id="prevPageBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">
+              <i class="fa-solid fa-chevron-left text-xs"></i>
+            </button>
+            <span class="font-medium text-slate-300 text-xs px-2">
+              Page <span id="currentPageNum" class="text-white font-bold">1</span> / <span id="totalPagesNum">1</span>
             </span>
-          </h1>
-          <p class="text-xs text-slate-400 hidden sm:block">100% Client-Side &bull; Section 3 Default &bull; Offline Ready</p>
-        </div>
-      </div>
-
-      <!-- Quick Actions -->
-      <div class="flex items-center gap-2 sm:gap-2.5">
-        <!-- Trial Status Badge (Shown only in trial mode) -->
-        <div id="trialHeaderBadge" class="hidden items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-          <i class="fa-solid fa-stopwatch text-amber-400"></i>
-          <span>Trial: <strong id="trialRemainingCount">3</strong> left</span>
-        </div>
-
-        <!-- Master Admin: Create 1-Time Permanent Activation Link -->
-        <button id="openInviteModalBtn" class="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 px-3 py-1.5 rounded-lg border border-indigo-500/30 transition flex items-center gap-1.5" title="Generate a one-time activation link to authorize another PC">
-          <i class="fa-solid fa-user-plus"></i>
-          <span class="hidden sm:inline">1-Time Auth Link</span>
-        </button>
-
-        <!-- Master Admin: Create Public 3-Trial Link -->
-        <button id="openTrialModalBtn" class="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 px-3 py-1.5 rounded-lg border border-amber-500/30 transition flex items-center gap-1.5" title="Generate a public link with free trial exports">
-          <i class="fa-solid fa-ticket"></i>
-          <span class="hidden sm:inline">Create Trial Link</span>
-        </button>
-
-        <!-- Upgrade / Pricing Plans Button (Visible in Trial Mode) -->
-        <button id="headerPlansBtn" class="hidden text-xs bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 px-3 py-1.5 rounded-lg border border-amber-500/40 transition flex items-center gap-1.5" title="View pricing and subscription plans">
-          <i class="fa-solid fa-crown text-amber-400"></i>
-          <span class="font-semibold">Upgrade</span>
-        </button>
-
-        <button id="lockWorkspaceBtn" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 px-2.5 py-1.5 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5" title="Lock Studio and destroy current browser session">
-          <i class="fa-solid fa-lock"></i>
-          <span>Lock</span>
-        </button>
-      </div>
-    </header>
-
-    <!-- MAIN WORKSPACE -->
-    <main class="flex-1 flex flex-col overflow-hidden max-w-7xl w-full mx-auto p-3 sm:p-5">
-      <!-- UPLOAD HERO STATE -->
-      <section id="uploadSection" class="flex-1 flex flex-col justify-center items-center py-10">
-        <div id="dropZone" class="w-full max-w-2xl bg-slate-900/50 hover:bg-slate-900/90 border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all duration-300 shadow-2xl relative group">
-          <input type="file" id="fileInput" accept="application/pdf" class="hidden">
-          
-          <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-brand-400 group-hover:scale-110 group-hover:bg-brand-500 group-hover:text-white transition duration-300 shadow-inner">
-            <i class="fa-solid fa-file-arrow-up text-3xl"></i>
+            <button id="nextPageBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">
+              <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
           </div>
 
-          <h2 class="text-2xl font-bold text-white mb-2">Drag & Drop your PDF here</h2>
-          <p class="text-slate-400 text-sm max-w-md mx-auto mb-6 leading-relaxed">
-            100% Client-Side. Adjust section boundaries directly on the interactive preview and download your cropped document.
-          </p>
+          <div class="flex items-center space-x-1">
+            <button id="zoomOutBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
+              <i class="fa-solid fa-magnifying-glass-minus text-xs"></i>
+            </button>
+            <span id="zoomLevelText" class="font-mono text-slate-400 min-w-[45px] text-center text-xs">100%</span>
+            <button id="zoomInBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
+              <i class="fa-solid fa-magnifying-glass-plus text-xs"></i>
+            </button>
+            <button id="zoomFitBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
+              <i class="fa-solid fa-expand text-xs"></i>
+            </button>
+          </div>
 
-          <button type="button" class="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-semibold shadow-lg shadow-indigo-600/30 transition inline-flex items-center gap-2">
-            <i class="fa-regular fa-folder-open"></i> Browse PDF Files
+          <button id="resetBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
+            <i class="fa-solid fa-arrow-rotate-left mr-1"></i> New PDF
           </button>
+        </div>
+
+        <div id="previewScrollArea" class="flex-1 overflow-auto bg-slate-950 p-4 sm:p-6 flex justify-center items-start relative select-none">
+          <div id="canvasWrapper" class="relative shadow-2xl transition-transform duration-100 inline-block select-none">
+            <canvas id="pdfCanvas" class="block bg-white rounded-sm"></canvas>
+
+            <div id="cropOverlaySystem" class="absolute inset-0 pointer-events-none">
+              <div id="topDimmedMask" class="absolute top-0 left-0 right-0 dimmed-mask pointer-events-auto"></div>
+              <div id="topHandle" class="resize-handle pointer-events-auto">
+                <div class="resize-pill flex items-center justify-center"><div class="w-2 h-0.5 bg-slate-700/60 rounded"></div></div>
+              </div>
+              <div id="activeCropBox" class="absolute left-0 right-0 crop-selected-region pointer-events-auto drag-region-body flex flex-col justify-between p-2">
+                <div class="flex items-center justify-between pointer-events-none">
+                  <span id="cropBoxBadge" class="bg-brand-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow">Section 3 (Active)</span>
+                  <span id="cropHeightDimension" class="bg-slate-900/80 text-brand-300 border border-brand-500/40 text-[10px] font-mono px-1.5 py-0.5 rounded shadow">33.3%</span>
+                </div>
+              </div>
+              <div id="bottomHandle" class="resize-handle pointer-events-auto">
+                <div class="resize-pill flex items-center justify-center"><div class="w-2 h-0.5 bg-slate-700/60 rounded"></div></div>
+              </div>
+              <div id="bottomDimmedMask" class="absolute bottom-0 left-0 right-0 dimmed-mask pointer-events-auto"></div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- ACTIVE EDITING WORKSPACE -->
-      <div id="workspaceSection" class="hidden flex-1 flex flex-col lg:flex-row gap-5 h-[calc(100vh-6.2rem)] overflow-hidden">
-        
-        <!-- LEFT: CANVAS PREVIEW -->
-        <section class="flex-1 flex flex-col bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden shadow-xl min-w-0">
-          <div class="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex items-center space-x-1.5">
-              <button id="prevPageBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">
-                <i class="fa-solid fa-chevron-left text-xs"></i>
-              </button>
-              <span class="font-medium text-slate-300 text-xs px-2">
-                Page <span id="currentPageNum" class="text-white font-bold">1</span> / <span id="totalPagesNum">1</span>
-              </span>
-              <button id="nextPageBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">
-                <i class="fa-solid fa-chevron-right text-xs"></i>
-              </button>
-            </div>
-
-            <div class="flex items-center space-x-1">
-              <button id="zoomOutBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
-                <i class="fa-solid fa-magnifying-glass-minus text-xs"></i>
-              </button>
-              <span id="zoomLevelText" class="font-mono text-slate-400 min-w-[45px] text-center text-xs">100%</span>
-              <button id="zoomInBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
-                <i class="fa-solid fa-magnifying-glass-plus text-xs"></i>
-              </button>
-              <button id="zoomFitBtn" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition">
-                <i class="fa-solid fa-expand text-xs"></i>
-              </button>
-            </div>
-
-            <button id="resetBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700">
-              <i class="fa-solid fa-arrow-rotate-left mr-1"></i> New PDF
-            </button>
+      <!-- RIGHT: PRECISION CONTROLS & EXPORT -->
+      <aside class="w-full lg:w-96 flex flex-col bg-slate-900/80 rounded-2xl border border-slate-800 p-4 sm:p-5 overflow-y-auto space-y-4 shadow-xl shrink-0">
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 mb-2">
+            <i class="fa-solid fa-scissors text-brand-400"></i> Section Presets
+          </label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-sec-btn="1" class="preset-btn flex flex-col items-center justify-center p-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-xs">Sec 1 (Top)</button>
+            <button type="button" data-sec-btn="2" class="preset-btn flex flex-col items-center justify-center p-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-xs">Sec 2 (Mid)</button>
+            <button type="button" data-sec-btn="3" class="preset-btn active flex flex-col items-center justify-center p-2 rounded-xl border-2 border-brand-500 bg-brand-500/15 text-xs text-brand-300 font-bold">Sec 3 (Bottom)</button>
           </div>
+        </div>
 
-          <div id="previewScrollArea" class="flex-1 overflow-auto bg-slate-950 p-4 sm:p-6 flex justify-center items-start relative select-none">
-            <div id="canvasWrapper" class="relative shadow-2xl transition-transform duration-100 inline-block select-none">
-              <canvas id="pdfCanvas" class="block bg-white rounded-sm"></canvas>
-
-              <div id="cropOverlaySystem" class="absolute inset-0 pointer-events-none">
-                <div id="topDimmedMask" class="absolute top-0 left-0 right-0 dimmed-mask pointer-events-auto"></div>
-                <div id="topHandle" class="resize-handle pointer-events-auto">
-                  <div class="resize-pill flex items-center justify-center"><div class="w-2 h-0.5 bg-slate-700/60 rounded"></div></div>
-                </div>
-                <div id="activeCropBox" class="absolute left-0 right-0 crop-selected-region pointer-events-auto drag-region-body flex flex-col justify-between p-2">
-                  <div class="flex items-center justify-between pointer-events-none">
-                    <span id="cropBoxBadge" class="bg-brand-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shadow">Section 3 (Active)</span>
-                    <span id="cropHeightDimension" class="bg-slate-900/80 text-brand-300 border border-brand-500/40 text-[10px] font-mono px-1.5 py-0.5 rounded shadow">33.3%</span>
-                  </div>
-                </div>
-                <div id="bottomHandle" class="resize-handle pointer-events-auto">
-                  <div class="resize-pill flex items-center justify-center"><div class="w-2 h-0.5 bg-slate-700/60 rounded"></div></div>
-                </div>
-                <div id="bottomDimmedMask" class="absolute bottom-0 left-0 right-0 dimmed-mask pointer-events-auto"></div>
-              </div>
+        <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-2">
+          <span class="text-xs font-semibold text-slate-200">Bounds Precision (%)</span>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span class="text-[10px] text-slate-400">Start Top:</span>
+              <input id="inputStartY" type="number" step="0.5" min="0" max="95" class="w-full bg-slate-900 text-white font-mono px-2 py-1 rounded border border-slate-700 text-xs mt-0.5">
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400">End Bottom:</span>
+              <input id="inputEndY" type="number" step="0.5" min="5" max="100" class="w-full bg-slate-900 text-white font-mono px-2 py-1 rounded border border-slate-700 text-xs mt-0.5">
             </div>
           </div>
-        </section>
+          <button id="setAsDefaultBtn" type="button" class="w-full mt-2 py-1.5 bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-brand-300 rounded text-xs">
+            Set as Default Preset
+          </button>
+        </div>
 
-        <!-- RIGHT: PRECISION CONTROLS & EXPORT -->
-        <aside class="w-full lg:w-96 flex flex-col bg-slate-900/80 rounded-2xl border border-slate-800 p-4 sm:p-5 overflow-y-auto space-y-4 shadow-xl shrink-0">
-          <div>
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 mb-2">
-              <i class="fa-solid fa-scissors text-brand-400"></i> Section Presets
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 block">Output Format</label>
+          <div class="space-y-1.5 text-xs">
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer">
+              <input type="radio" name="outputFormat" value="cropbox_only" checked class="accent-brand-500">
+              <span>Crop to Content Only (Tight Fit)</span>
             </label>
-            <div class="grid grid-cols-3 gap-2">
-              <button type="button" data-sec-btn="1" class="preset-btn flex flex-col items-center justify-center p-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-xs">Sec 1 (Top)</button>
-              <button type="button" data-sec-btn="2" class="preset-btn flex flex-col items-center justify-center p-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-xs">Sec 2 (Mid)</button>
-              <button type="button" data-sec-btn="3" class="preset-btn active flex flex-col items-center justify-center p-2 rounded-xl border-2 border-brand-500 bg-brand-500/15 text-xs text-brand-300 font-bold">Sec 3 (Bottom)</button>
-            </div>
-          </div>
-
-          <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-2">
-            <span class="text-xs font-semibold text-slate-200">Bounds Precision (%)</span>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span class="text-[10px] text-slate-400">Start Top:</span>
-                <input id="inputStartY" type="number" step="0.5" min="0" max="95" class="w-full bg-slate-900 text-white font-mono px-2 py-1 rounded border border-slate-700 text-xs mt-0.5">
-              </div>
-              <div>
-                <span class="text-[10px] text-slate-400">End Bottom:</span>
-                <input id="inputEndY" type="number" step="0.5" min="5" max="100" class="w-full bg-slate-900 text-white font-mono px-2 py-1 rounded border border-slate-700 text-xs mt-0.5">
-              </div>
-            </div>
-            <button id="setAsDefaultBtn" type="button" class="w-full mt-2 py-1.5 bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-brand-300 rounded text-xs">
-              Set as Default Preset
-            </button>
-          </div>
-
-          <div>
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 block">Output Format</label>
-            <div class="space-y-1.5 text-xs">
-              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer">
-                <input type="radio" name="outputFormat" value="cropbox_only" checked class="accent-brand-500">
-                <span>Crop to Content Only (Tight Fit)</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer">
-                <input type="radio" name="outputFormat" value="preserve_page_white" class="accent-brand-500">
-                <span>Preserve Page (Clean White Margins)</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-800 mt-auto">
-            <button id="downloadPdfBtn" class="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2">
-              <i class="fa-solid fa-file-arrow-down"></i>
-              <span>Crop & Download PDF</span>
-            </button>
-          </div>
-        </aside>
-      </div>
-    </main>
-  </div>
-
-  <!-- ========================================================================= -->
-  <!-- MODAL: GENERATE 1-TIME INVITATION LINK (ADMIN PERMANENT AUTH)             -->
-  <!-- ========================================================================= -->
-  <div id="inviteModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
-            <i class="fa-solid fa-user-plus"></i>
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-white">Create 1-Time Permanent Auth Link</h3>
-            <p class="text-xs text-slate-400">Authorizes a single PC permanently with hardware biometrics.</p>
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer">
+              <input type="radio" name="outputFormat" value="preserve_page_white" class="accent-brand-500">
+              <span>Preserve Page (Clean White Margins)</span>
+            </label>
           </div>
         </div>
-        <button id="closeInviteModalBtn" class="text-slate-400 hover:text-white p-2">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+
+        <div class="pt-3 border-t border-slate-800 mt-auto">
+          <button id="downloadPdfBtn" class="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2">
+            <i class="fa-solid fa-file-arrow-down"></i>
+            <span>Crop & Download PDF</span>
+          </button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: AUTHENTICATION (SIGN UP & SIGN IN)                                 -->
+  <!-- ========================================================================= -->
+  <div id="authModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
+      <button id="closeAuthModalBtn" class="absolute top-5 right-5 text-slate-400 hover:text-white p-2">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center text-xl shadow-lg shadow-indigo-600/30">
+          <i class="fa-solid fa-user-lock"></i>
+        </div>
+        <h3 id="authModalTitle" class="text-xl font-bold text-white">Sign In to PDF Studio</h3>
+        <p id="authModalSubtitle" class="text-xs text-slate-400 mt-1">Access your unlimited workstation license or continue free trial.</p>
       </div>
 
-      <div class="space-y-4">
+      <form id="authForm" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1">Link Expiration Window</label>
-          <select id="inviteExpireSelect" class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-brand-500">
-            <option value="1">Valid for 1 Hour</option>
-            <option value="6">Valid for 6 Hours</option>
-            <option value="24" selected>Valid for 24 Hours</option>
-            <option value="72">Valid for 3 Days</option>
-          </select>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+          <input type="email" id="authEmail" required class="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 text-white text-xs rounded-xl p-3 outline-none transition" placeholder="name@domain.com">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+          <input type="password" id="authPassword" required minlength="6" class="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 text-white text-xs rounded-xl p-3 outline-none transition" placeholder="••••••••">
         </div>
 
-        <button id="generateInviteBtn" type="button" class="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <span>Generate Single-Use Device Activation Link</span>
+        <div id="authErrorMessage" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="authErrorText">Invalid credentials</span>
+        </div>
+
+        <button type="submit" id="authSubmitBtn" class="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/20">
+          Sign In
         </button>
 
-        <div id="generatedLinkArea" class="hidden space-y-2 pt-2 border-t border-slate-800">
-          <label class="block text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-check"></i> Single-Use Activation Link Ready
-          </label>
-          <div class="flex items-center gap-2">
-            <input id="generatedLinkInput" readonly class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[11px] font-mono rounded-xl p-2.5 outline-none select-all truncate">
-            <button id="copyInviteLinkBtn" class="shrink-0 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition">
-              <i class="fa-regular fa-copy"></i> Copy
-            </button>
-          </div>
+        <div class="text-center pt-2">
+          <button type="button" id="toggleAuthModeBtn" class="text-xs text-brand-400 hover:text-brand-300 transition">
+            Don't have an account? Sign Up Free
+          </button>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 
   <!-- ========================================================================= -->
-  <!-- MODAL: GENERATE PUBLIC 3-TRIAL LINK (ADMIN TOOL)                          -->
+  <!-- MODAL: MASTER ADMIN DASHBOARD                                             -->
   <!-- ========================================================================= -->
-  <div id="trialModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
+  <div id="adminPortalModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 hidden flex flex-col p-4 sm:p-8 overflow-y-auto">
+    <div class="max-w-6xl w-full mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl flex-1 flex flex-col my-auto">
+      
+      <!-- Admin Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-5">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-lg">
-            <i class="fa-solid fa-ticket"></i>
+          <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-brand-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-shield-halved"></i>
           </div>
           <div>
-            <h3 class="text-base font-bold text-white">Create Public Trial Link</h3>
-            <p class="text-xs text-slate-400">Share with anyone. Grants free crops/exports based on limit.</p>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg sm:text-xl font-bold text-white">Master Admin Control Panel</h2>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold border border-emerald-500/30">Live Firestore Sync</span>
+            </div>
+            <p class="text-xs text-slate-400">Manage user subscriptions, extend access dates, or revoke accounts with zero manual code changes.</p>
           </div>
         </div>
-        <button id="closeTrialModalBtn" class="text-slate-400 hover:text-white p-2">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
 
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1">Trial Link Active Window</label>
-          <select id="trialExpireSelect" class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-amber-500">
-            <option value="24">Active for 24 Hours</option>
-            <option value="72">Active for 3 Days</option>
-            <option value="168" selected>Active for 7 Days</option>
-            <option value="720">Active for 30 Days</option>
-          </select>
-        </div>
-
-        <button id="generateTrialBtn" type="button" class="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <span>Generate Public Trial Link</span>
-        </button>
-
-        <div id="generatedTrialArea" class="hidden space-y-2 pt-2 border-t border-slate-800">
-          <label class="block text-[11px] font-semibold text-amber-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-check"></i> Public Trial Link Ready to Share
-          </label>
-          <div class="flex items-center gap-2">
-            <input id="generatedTrialInput" readonly class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[11px] font-mono rounded-xl p-2.5 outline-none select-all truncate">
-            <button id="copyTrialLinkBtn" class="shrink-0 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-xl text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition">
-              <i class="fa-regular fa-copy"></i> Copy
-            </button>
-            <button id="openShortenerBtn" class="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition" title="Shorten with TinyURL in 1 click">
-              <i class="fa-solid fa-scissors"></i> Shorten
-            </button>
-          </div>
-          <p class="text-[11px] text-slate-400">Users can open this on any desktop browser to crop and export before being prompted to subscribe.</p>
+        <div class="flex items-center gap-2">
+          <button id="refreshUsersBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-rotate-right"></i> Refresh List
+          </button>
+          <button id="closeAdminPortalBtn" class="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800 hover:bg-slate-700 transition">
+            <i class="fa-solid fa-xmark text-base"></i>
+          </button>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- ========================================================================= -->
-  <!-- MODAL: SUBSCRIPTION UPGRADE PAYWALL (WHEN TRIALS ARE EXHAUSTED)           -->
-  <!-- ========================================================================= -->
-  <div id="subscriptionModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-center">
-      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-2xl shadow-xl shadow-amber-500/20">
-        <i class="fa-solid fa-crown"></i>
-      </div>
-
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold mb-3">
-        <i class="fa-solid fa-clock-rotate-left"></i> Free Trial Expired
-      </div>
-
-      <h3 class="text-xl sm:text-2xl font-bold text-white mb-2">Free Trial Limit Reached</h3>
-      <p class="text-xs sm:text-sm text-slate-300 mb-6 leading-relaxed">
-        You've used all complimentary PDF exports on this device. Choose a subscription plan to continue with unlimited high-resolution cropping.
-      </p>
-
-      <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-left mb-6 space-y-2 text-xs">
-        <div class="font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-circle-check text-emerald-400"></i> What Full Access Includes:
+      <!-- Quick Search & Counters -->
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
+        <div class="relative w-full sm:w-72">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
+          <input id="adminSearchInput" type="text" placeholder="Search by user email..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs pl-8 pr-3 py-2.5 rounded-xl outline-none focus:border-brand-500">
         </div>
-        <ul class="text-slate-400 space-y-1 pl-5 list-disc text-[11px]">
-          <li>Unlimited PDF crops with Section 3 presets</li>
-          <li>Hardware-authenticated permanent workstation license</li>
-          <li>100% offline, private client-side processing</li>
-          <li>Zero ads, no watermarks, full 300 DPI vector export</li>
-        </ul>
+        <div class="flex items-center gap-2 text-xs text-slate-400 w-full sm:w-auto justify-end">
+          <span>Total Users: <strong id="adminTotalUsers" class="text-white">0</strong></span>
+          <span>&bull;</span>
+          <span>Active Paid: <strong id="adminActiveUsers" class="text-emerald-400">0</strong></span>
+        </div>
       </div>
 
-      <div class="space-y-3">
-        <!-- Opens the INR Pricing Dialog -->
-        <button 
-          type="button" 
-          id="showPricingPlansBtn"
-          class="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold rounded-2xl shadow-lg shadow-amber-500/30 transition text-sm flex items-center justify-center gap-2 active:scale-[0.98]"
-        >
-          <i class="fa-solid fa-tags text-base"></i> View Subscription Plans & Pricing
-        </button>
-        <button 
-          type="button" 
-          id="closeSubModalBtn"
-          class="w-full py-2.5 text-xs text-slate-400 hover:text-white transition"
-        >
-          Review Workspace (Read-Only)
-        </button>
+      <!-- Users Table -->
+      <div class="flex-1 overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950/60">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+            <tr>
+              <th class="p-3.5">User Email</th>
+              <th class="p-3.5">Plan</th>
+              <th class="p-3.5">Status</th>
+              <th class="p-3.5">Trial Used</th>
+              <th class="p-3.5">Expiration</th>
+              <th class="p-3.5 text-right">Quick Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+            <tr>
+              <td colspan="6" class="p-8 text-center text-slate-500">
+                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Loading users from database...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+        <span>Granting time pushes the expiration timestamp directly into Google Cloud Firestore.</span>
+        <span>Role-Based Security Enforced</span>
       </div>
     </div>
   </div>
@@ -548,7 +444,7 @@
           <h3 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             Select Your Subscription Plan
           </h3>
-          <p class="text-xs text-slate-400">Unlock unlimited PDF cropping with hardware-secured PC access.</p>
+          <p class="text-xs text-slate-400">Unlock unlimited PDF cropping across all your devices.</p>
         </div>
         <button id="closePricingPlansBtn" class="text-slate-400 hover:text-white p-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition">
           <i class="fa-solid fa-xmark text-sm"></i>
@@ -570,7 +466,7 @@
           </div>
           <ul class="text-[11px] text-slate-400 space-y-1 mb-3">
             <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Unlimited PDF Crops</li>
-            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> 1 PC Hardware License</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Cloud Account Login</li>
           </ul>
           <div class="plan-select-indicator text-[11px] font-semibold text-slate-400 group-hover:text-white flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
             <i class="fa-regular fa-circle text-xs"></i> Select Plan
@@ -589,7 +485,7 @@
           </div>
           <ul class="text-[11px] text-slate-400 space-y-1 mb-3">
             <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Unlimited PDF Crops</li>
-            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> 1 PC Hardware License</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Cloud Account Login</li>
           </ul>
           <div class="plan-select-indicator text-[11px] font-semibold text-slate-400 group-hover:text-white flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
             <i class="fa-regular fa-circle text-xs"></i> Select Plan
@@ -611,7 +507,7 @@
           </div>
           <ul class="text-[11px] text-slate-400 space-y-1 mb-3">
             <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Unlimited PDF Crops</li>
-            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Priority Hardware Passkey</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Priority Fast Processing</li>
           </ul>
           <div class="plan-select-indicator text-[11px] font-semibold text-brand-300 flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
             <i class="fa-solid fa-circle-check text-brand-400 text-xs"></i> Selected Plan
@@ -633,7 +529,7 @@
           </div>
           <ul class="text-[11px] text-slate-400 space-y-1 mb-3">
             <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Unlimited PDF Crops</li>
-            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Permanent Hardware Key</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> Unrestricted License</li>
           </ul>
           <div class="plan-select-indicator text-[11px] font-semibold text-slate-400 group-hover:text-white flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
             <i class="fa-regular fa-circle text-xs"></i> Select Plan
@@ -642,7 +538,7 @@
 
       </div>
 
-      <!-- Action Panel: WhatsApp / Contact Admin -->
+      <!-- Action Panel: WhatsApp / Copy Summary -->
       <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="text-center sm:text-left">
           <div class="text-xs text-slate-400">Selected Plan:</div>
@@ -671,7 +567,7 @@
       </div>
 
       <div class="text-center mt-3 text-[10px] text-slate-500">
-        After confirmation, admin will issue a single-use 1-Time Permanent Activation link for your PC.
+        Your account unlocks automatically once your payment is confirmed by admin.
       </div>
     </div>
   </div>
@@ -684,251 +580,37 @@
 
   <script>
     /* =========================================================================
-     * CRYPTOGRAPHIC ACTIVATION, TRIAL ENGINE & HARDWARE LOCK ENGINE
+     * 1. FIREBASE CONFIGURATION & INITIALIZATION (LIVE CONNECTED)
      * ========================================================================= */
-    const MASTER_SIGNING_SECRET    = "PDF-STUDIO-VAULT-AUTHENTIC-2026-KEY";
-    const STORAGE_VAULT_TOKEN      = 'pdf_vault_session_token_v7';
-    const STORAGE_WEBAUTHN_CRED_ID = 'pdf_vault_webauthn_id_v7';
-    const STORAGE_CONSUMED_TOKENS  = 'pdf_vault_consumed_tokens_v7';
-    const STORAGE_TRIAL_USAGE      = 'pdf_vault_trial_uses_v7';
-    const DEFAULT_STORAGE_KEY      = 'pdf_crop_custom_bounds';
+    const firebaseConfig = {
+      apiKey: "AIzaSyBePC_H8dSo25IjLh2loNN0iiuRlhnmPic",
+      authDomain: "pdf-precision-studio.firebaseapp.com",
+      projectId: "pdf-precision-studio",
+      storageBucket: "pdf-precision-studio.firebasestorage.app",
+      messagingSenderId: "689626989813",
+      appId: "1:689626989813:web:22c697dcb15d3e2fe7f1bc",
+      measurementId: "G-6BSS5J2SL4"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
     /* =========================================================================
-     * TRIAL COUNTER CONFIGURATION: CHANGE THIS VALUE TO MODIFY ALLOWED TRIALS
+     * 2. STATE MANAGEMENT
      * ========================================================================= */
-    const MAX_TRIAL_USES           = 3; // <-- Change to 5, 10, etc. as desired
+    const MAX_GUEST_TRIALS = 3;
+    const DEFAULT_STORAGE_KEY = 'pdf_crop_custom_bounds';
 
-    function isMobileDevice() {
-      const ua = navigator.userAgent || navigator.vendor || window.opera;
-      const isTouchScreen = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-      const isMobileUA = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
-      const isIosPlatform = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      return isMobileUA || (isTouchScreen && isIosPlatform);
-    }
+    const appState = {
+      user: null,
+      profile: null,
+      isAdmin: false,
+      isPaidActive: false,
+      guestTrialsUsed: parseInt(localStorage.getItem('pdf_guest_trials') || '0', 10),
 
-    function bufferToBase64(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-
-    function base64ToBuffer(base64) {
-      let b64 = base64.replace(/-/g, '+').replace(/_/g, '/');
-      while (b64.length % 4) b64 += '=';
-      const binary = atob(b64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return bytes.buffer;
-    }
-
-    async function generateHMAC(message, secret) {
-      const enc = new TextEncoder();
-      const key = await window.crypto.subtle.importKey(
-        "raw",
-        enc.encode(secret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign", "verify"]
-      );
-      const signature = await window.crypto.subtle.sign("HMAC", key, enc.encode(message));
-      return bufferToBase64(signature);
-    }
-
-    /* --- Permanent 1-Time Token --- */
-    async function createSignedActivationToken(validHours = 24) {
-      const payload = {
-        type: 'permanent_enroll',
-        id: 'tok_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36),
-        exp: Date.now() + (validHours * 60 * 60 * 1000)
-      };
-      const payloadStr = JSON.stringify(payload);
-      const payloadB64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      const sig = await generateHMAC(payloadB64, MASTER_SIGNING_SECRET);
-      return `${payloadB64}.${sig}`;
-    }
-
-    /* --- Public Trial Token --- */
-    async function createSignedTrialToken(validHours = 168) {
-      const payload = {
-        type: 'public_trial',
-        id: 'trl_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36),
-        maxUses: MAX_TRIAL_USES,
-        exp: Date.now() + (validHours * 60 * 60 * 1000)
-      };
-      const payloadStr = JSON.stringify(payload);
-      const payloadB64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      const sig = await generateHMAC(payloadB64, MASTER_SIGNING_SECRET);
-      return `${payloadB64}.${sig}`;
-    }
-
-    async function verifyToken(token) {
-      if (!token || !token.includes('.')) return { valid: false, reason: 'Invalid format' };
-      const [payloadB64, sig] = token.split('.');
-      try {
-        const expectedSig = await generateHMAC(payloadB64, MASTER_SIGNING_SECRET);
-        if (expectedSig !== sig) {
-          return { valid: false, reason: 'Tampered or counterfeit link' };
-        }
-
-        let b64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) b64 += '=';
-        const payload = JSON.parse(atob(b64));
-
-        if (Date.now() > payload.exp) {
-          return { valid: false, reason: 'This link has expired' };
-        }
-
-        // Check if consumed (only applicable for 1-time permanent activation links)
-        if (payload.type !== 'public_trial') {
-          const consumed = JSON.parse(localStorage.getItem(STORAGE_CONSUMED_TOKENS) || '[]');
-          if (consumed.includes(payload.id)) {
-            return { valid: false, reason: 'This single-use link has already been used' };
-          }
-        }
-
-        return { valid: true, payload };
-      } catch (e) {
-        return { valid: false, reason: 'Failed to parse link' };
-      }
-    }
-
-    function markTokenAsConsumed(tokenId) {
-      try {
-        const consumed = JSON.parse(localStorage.getItem(STORAGE_CONSUMED_TOKENS) || '[]');
-        if (!consumed.includes(tokenId)) {
-          consumed.push(tokenId);
-          localStorage.setItem(STORAGE_CONSUMED_TOKENS, JSON.stringify(consumed));
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-
-    /* --- Trial Usage Tracking --- */
-    function getTrialUsageCount() {
-      return parseInt(localStorage.getItem(STORAGE_TRIAL_USAGE) || '0', 10);
-    }
-
-    function incrementTrialUsageCount() {
-      const current = getTrialUsageCount() + 1;
-      localStorage.setItem(STORAGE_TRIAL_USAGE, current.toString());
-      updateTrialBadgeDisplay();
-      return current;
-    }
-
-    function updateTrialBadgeDisplay() {
-      const current = getTrialUsageCount();
-      const remaining = Math.max(0, MAX_TRIAL_USES - current);
-      const remainingElem = document.getElementById('trialRemainingCount');
-      if (remainingElem) remainingElem.textContent = remaining;
-      return remaining;
-    }
-
-    let activeValidActivationToken = null;
-    let isTrialSession = false;
-
-    async function enrollCurrentDevice() {
-      if (isMobileDevice()) {
-        showToast('Mobile devices are strictly forbidden from enrolling.', 'error');
-        return false;
-      }
-
-      try {
-        const challenge = new Uint8Array(32);
-        window.crypto.getRandomValues(challenge);
-        const userId = new Uint8Array(16);
-        window.crypto.getRandomValues(userId);
-
-        const createCredentialOptions = {
-          publicKey: {
-            challenge: challenge,
-            rp: { name: "Precision Studio Suite", id: window.location.hostname || undefined },
-            user: { id: userId, name: "authorized-workstation", displayName: "Authorized Workstation" },
-            pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
-            authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
-            timeout: 60000,
-            attestation: "none"
-          }
-        };
-
-        const newCredential = await navigator.credentials.create(createCredentialOptions);
-        if (newCredential) {
-          const rawIdBase64 = bufferToBase64(newCredential.rawId);
-          localStorage.setItem(STORAGE_WEBAUTHN_CRED_ID, rawIdBase64);
-          localStorage.setItem(STORAGE_VAULT_TOKEN, 'hardware_authenticated');
-
-          if (activeValidActivationToken && activeValidActivationToken.id) {
-            markTokenAsConsumed(activeValidActivationToken.id);
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-
-          showToast('This PC has been permanently authorized!', 'success');
-          unlockWorkspace(false);
-          if (window.va) window.va('event', { name: 'device_enrolled' });
-          return true;
-        }
-      } catch (err) {
-        console.error("Hardware enrollment error:", err);
-        showToast('Enrollment cancelled: ' + (err.message || 'Cancelled'), 'error');
-      }
-      return false;
-    }
-
-    async function authenticateWithHardwarePasskey() {
-      if (isMobileDevice()) {
-        deviceBlockedNotice.classList.remove('hidden');
-        deviceBlockedReason.textContent = 'Mobile access is disabled. Open on your authorized PC.';
-        return false;
-      }
-
-      const activeCredId = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
-      if (!activeCredId) {
-        cryptoErrorText.textContent = 'This machine is not authorized. You must open an activation invitation link to register.';
-        cryptoError.classList.remove('hidden');
-        return false;
-      }
-
-      try {
-        const challenge = new Uint8Array(32);
-        window.crypto.getRandomValues(challenge);
-        const credIdBuffer = base64ToBuffer(activeCredId);
-
-        const getCredentialOptions = {
-          publicKey: {
-            challenge: challenge,
-            allowCredentials: [{ id: credIdBuffer, type: 'public-key', transports: ['internal'] }],
-            userVerification: "required",
-            timeout: 60000
-          }
-        };
-
-        const assertion = await navigator.credentials.get(getCredentialOptions);
-        if (assertion) {
-          localStorage.setItem(STORAGE_VAULT_TOKEN, 'hardware_authenticated');
-          unlockWorkspace(false);
-          showToast('Hardware verified via biometric chip!', 'success');
-          if (window.va) window.va('event', { name: 'unlock_hardware_success' });
-          return true;
-        }
-      } catch (err) {
-        console.error("Hardware auth rejected:", err);
-        cryptoErrorText.textContent = 'Hardware rejected: This PC does not match the enrolled physical key.';
-        cryptoError.classList.remove('hidden');
-        showToast('Hardware verification rejected.', 'error');
-      }
-      return false;
-    }
-
-    /* =========================================================================
-     * STATE MANAGEMENT
-     * ========================================================================= */
-    const state = {
-      isUnlocked: false,
-      isTrial: false,
       rawPdfBytes: null,
       pdfDocument: null,
-      currentPassword: '',
       fileName: 'document.pdf',
       currentPage: 1,
       totalPages: 1,
@@ -938,55 +620,48 @@
       isRendering: false
     };
 
-    // Selected Pricing Plan Object
     let currentSelectedPlan = {
       planId: '6_months',
       duration: '6 Months',
       price: '499'
     };
 
+    let allLoadedAdminUsers = [];
+
     // DOM Elements
-    const cryptoShield = document.getElementById('cryptoShield');
-    const appContainer = document.getElementById('appContainer');
-    const cryptoError = document.getElementById('cryptoError');
-    const cryptoErrorText = document.getElementById('cryptoErrorText');
-    const lockWorkspaceBtn = document.getElementById('lockWorkspaceBtn');
-    const passkeyAuthBtn = document.getElementById('passkeyAuthBtn');
-    const enrollDeviceBtn = document.getElementById('enrollDeviceBtn');
-    const deviceRegistrationBadge = document.getElementById('deviceRegistrationBadge');
-    const deviceBlockedNotice = document.getElementById('deviceBlockedNotice');
-    const deviceBlockedReason = document.getElementById('deviceBlockedReason');
-    const invitationDetectedBanner = document.getElementById('invitationDetectedBanner');
+    const headerPlanBadge = document.getElementById('headerPlanBadge');
+    const openAdminPortalBtn = document.getElementById('openAdminPortalBtn');
+    const openPricingBtn = document.getElementById('openPricingBtn');
+    const headerLoginBtn = document.getElementById('headerLoginBtn');
+    const userProfilePill = document.getElementById('userProfilePill');
+    const userEmailDisplay = document.getElementById('userEmailDisplay');
+    const headerLogoutBtn = document.getElementById('headerLogoutBtn');
 
-    const openInviteModalBtn = document.getElementById('openInviteModalBtn');
-    const inviteModal = document.getElementById('inviteModal');
-    const closeInviteModalBtn = document.getElementById('closeInviteModalBtn');
-    const generateInviteBtn = document.getElementById('generateInviteBtn');
-    const inviteExpireSelect = document.getElementById('inviteExpireSelect');
-    const generatedLinkArea = document.getElementById('generatedLinkArea');
-    const generatedLinkInput = document.getElementById('generatedLinkInput');
-    const copyInviteLinkBtn = document.getElementById('copyInviteLinkBtn');
+    const statusNoticeBanner = document.getElementById('statusNoticeBanner');
+    const statusNoticeIcon = document.getElementById('statusNoticeIcon');
+    const statusNoticeText = document.getElementById('statusNoticeText');
+    const statusNoticeActionBtn = document.getElementById('statusNoticeActionBtn');
 
-    // Trial Modal Elements
-    const openTrialModalBtn = document.getElementById('openTrialModalBtn');
-    const trialModal = document.getElementById('trialModal');
-    const closeTrialModalBtn = document.getElementById('closeTrialModalBtn');
-    const generateTrialBtn = document.getElementById('generateTrialBtn');
-    const trialExpireSelect = document.getElementById('trialExpireSelect');
-    const generatedTrialArea = document.getElementById('generatedTrialArea');
-    const generatedTrialInput = document.getElementById('generatedTrialInput');
-    const copyTrialLinkBtn = document.getElementById('copyTrialLinkBtn');
-    const openShortenerBtn = document.getElementById('openShortenerBtn');
+    const authModal = document.getElementById('authModal');
+    const closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
+    const authForm = document.getElementById('authForm');
+    const authEmail = document.getElementById('authEmail');
+    const authPassword = document.getElementById('authPassword');
+    const authModalTitle = document.getElementById('authModalTitle');
+    const authSubmitBtn = document.getElementById('authSubmitBtn');
+    const toggleAuthModeBtn = document.getElementById('toggleAuthModeBtn');
+    const authErrorMessage = document.getElementById('authErrorMessage');
+    const authErrorText = document.getElementById('authErrorText');
+    let isSignUpMode = false;
 
-    // Header & Paywall Badges
-    const sessionStatusBadge = document.getElementById('sessionStatusBadge');
-    const trialHeaderBadge = document.getElementById('trialHeaderBadge');
-    const headerPlansBtn = document.getElementById('headerPlansBtn');
-    const subscriptionModal = document.getElementById('subscriptionModal');
-    const closeSubModalBtn = document.getElementById('closeSubModalBtn');
-    const showPricingPlansBtn = document.getElementById('showPricingPlansBtn');
+    const adminPortalModal = document.getElementById('adminPortalModal');
+    const closeAdminPortalBtn = document.getElementById('closeAdminPortalBtn');
+    const refreshUsersBtn = document.getElementById('refreshUsersBtn');
+    const adminSearchInput = document.getElementById('adminSearchInput');
+    const adminUsersTableBody = document.getElementById('adminUsersTableBody');
+    const adminTotalUsers = document.getElementById('adminTotalUsers');
+    const adminActiveUsers = document.getElementById('adminActiveUsers');
 
-    // Pricing Modal Elements
     const pricingPlansModal = document.getElementById('pricingPlansModal');
     const closePricingPlansBtn = document.getElementById('closePricingPlansBtn');
     const planCards = document.querySelectorAll('.plan-card');
@@ -994,7 +669,7 @@
     const orderViaWhatsAppBtn = document.getElementById('orderViaWhatsAppBtn');
     const copyPlanDetailsBtn = document.getElementById('copyPlanDetailsBtn');
 
-    // PDF Elements
+    // PDF Canvas & Cropper Controls
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const uploadSection = document.getElementById('uploadSection');
@@ -1025,7 +700,6 @@
     const zoomLevelText = document.getElementById('zoomLevelText');
     const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 
-    // Toast
     const toast = document.getElementById('toastNotification');
     const toastMessage = document.getElementById('toastMessage');
     const toastIcon = document.getElementById('toastIcon');
@@ -1043,242 +717,333 @@
       setTimeout(() => { toast.classList.add('translate-y-24', 'opacity-0'); }, 3200);
     }
 
-    function checkTrialLimitOrShowPaywall() {
-      if (!state.isTrial) return false;
-      const used = getTrialUsageCount();
-      if (used >= MAX_TRIAL_USES) {
-        subscriptionModal.classList.remove('hidden');
-        return true;
+    /* =========================================================================
+     * 3. AUTHENTICATION & PROFILE ENGINE (FIREBASE AUTH & FIRESTORE)
+     * ========================================================================= */
+    function initAuth() {
+      auth.onAuthStateChanged(async (firebaseUser) => {
+        if (firebaseUser) {
+          appState.user = firebaseUser;
+          await fetchUserProfile(firebaseUser);
+          authModal.classList.add('hidden');
+        } else {
+          appState.user = null;
+          appState.profile = null;
+          appState.isAdmin = false;
+          appState.isPaidActive = false;
+          updateUIWithGuestState();
+        }
+      });
+    }
+
+    async function fetchUserProfile(firebaseUser) {
+      try {
+        const userDocRef = db.collection('users').doc(firebaseUser.uid);
+        const docSnap = await userDocRef.get();
+
+        if (docSnap.exists) {
+          appState.profile = docSnap.data();
+        } else {
+          const newProfile = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            role: 'user',
+            plan: 'free_trial',
+            status: 'active',
+            trial_used: 0,
+            max_trial: 3,
+            subscription_expires_at: null,
+            created_at: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          await userDocRef.set(newProfile);
+          appState.profile = newProfile;
+        }
+
+        appState.isAdmin = (appState.profile.role === 'admin');
+
+        const now = new Date();
+        const expiresAt = appState.profile.subscription_expires_at 
+          ? (appState.profile.subscription_expires_at.toDate ? appState.profile.subscription_expires_at.toDate() : new Date(appState.profile.subscription_expires_at))
+          : null;
+
+        appState.isPaidActive = (appState.profile.status === 'active' && 
+          (appState.profile.plan === 'lifetime' || (expiresAt && expiresAt > now)));
+
+        updateUIWithUserState();
+      } catch (err) {
+        console.error("Error fetching user profile from Firestore:", err);
+        updateUIWithGuestState();
       }
+    }
+
+    function updateUIWithGuestState() {
+      headerLoginBtn.classList.remove('hidden');
+      userProfilePill.classList.add('hidden');
+      openAdminPortalBtn.classList.add('hidden');
+
+      const remaining = Math.max(0, MAX_GUEST_TRIALS - appState.guestTrialsUsed);
+      if (remaining > 0) {
+        headerPlanBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        headerPlanBadge.textContent = `Guest Trial: ${remaining} left`;
+
+        statusNoticeBanner.classList.remove('hidden');
+        statusNoticeBanner.className = 'mb-3 text-xs p-3 rounded-2xl flex items-center justify-between gap-3 shadow-lg bg-amber-500/10 border border-amber-500/30 text-amber-300';
+        statusNoticeIcon.className = 'fa-solid fa-stopwatch text-amber-400';
+        statusNoticeText.textContent = `You have ${remaining} complimentary export(s) remaining. Sign up or log in to continue.`;
+        statusNoticeActionBtn.textContent = 'View Plans';
+        statusNoticeActionBtn.onclick = () => pricingPlansModal.classList.remove('hidden');
+      } else {
+        headerPlanBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30';
+        headerPlanBadge.textContent = `Trial Expired`;
+
+        statusNoticeBanner.classList.remove('hidden');
+        statusNoticeBanner.className = 'mb-3 text-xs p-3 rounded-2xl flex items-center justify-between gap-3 shadow-lg bg-rose-500/15 border border-rose-500/40 text-rose-300';
+        statusNoticeIcon.className = 'fa-solid fa-ban text-rose-400';
+        statusNoticeText.textContent = `Free trial limit reached. Sign in or upgrade to a plan to continue cropping documents.`;
+        statusNoticeActionBtn.textContent = 'Upgrade Now';
+        statusNoticeActionBtn.onclick = () => pricingPlansModal.classList.remove('hidden');
+      }
+    }
+
+    function updateUIWithUserState() {
+      headerLoginBtn.classList.add('hidden');
+      userProfilePill.classList.remove('hidden');
+      userProfilePill.classList.add('flex');
+      userEmailDisplay.textContent = appState.profile.email;
+
+      if (appState.isAdmin) {
+        openAdminPortalBtn.classList.remove('hidden');
+        headerPlanBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40';
+        headerPlanBadge.innerHTML = '<i class="fa-solid fa-crown text-amber-400 mr-1"></i> Master Admin';
+        statusNoticeBanner.classList.add('hidden');
+        return;
+      }
+
+      openAdminPortalBtn.classList.add('hidden');
+
+      if (appState.isPaidActive) {
+        const rawExp = appState.profile.subscription_expires_at;
+        const expDate = rawExp ? (rawExp.toDate ? rawExp.toDate().toLocaleDateString() : new Date(rawExp).toLocaleDateString()) : 'Active';
+        headerPlanBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        headerPlanBadge.textContent = `Active: ${appState.profile.plan.replace('_', ' ')} (Expires: ${expDate})`;
+        statusNoticeBanner.classList.add('hidden');
+      } else {
+        headerPlanBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30';
+        headerPlanBadge.textContent = `Subscription Inactive`;
+
+        statusNoticeBanner.classList.remove('hidden');
+        statusNoticeBanner.className = 'mb-3 text-xs p-3 rounded-2xl flex items-center justify-between gap-3 shadow-lg bg-rose-500/15 border border-rose-500/40 text-rose-300';
+        statusNoticeIcon.className = 'fa-solid fa-circle-exclamation text-rose-400';
+        statusNoticeText.textContent = `Your subscription has expired or is inactive. Choose a plan to unlock unlimited cropping.`;
+        statusNoticeActionBtn.textContent = 'Renew Plan';
+        statusNoticeActionBtn.onclick = () => pricingPlansModal.classList.remove('hidden');
+      }
+    }
+
+    function canUserExport() {
+      if (appState.isAdmin || appState.isPaidActive) return true;
+      if (appState.guestTrialsUsed < MAX_GUEST_TRIALS) return true;
+      pricingPlansModal.classList.remove('hidden');
+      showToast('Free trial limit reached. Please choose a subscription plan.', 'error');
       return false;
     }
 
     /* =========================================================================
-     * AUTHENTICATION FLOW & PUBLIC TRIAL ROUTER (STRICT LOCKDOWN)
+     * 4. AUTH MODAL INTERACTIONS
      * ========================================================================= */
-    async function initAuthenticationCheck() {
-      // 1. Mobile devices are blocked unconditionally
-      if (isMobileDevice()) {
-        cryptoShield.classList.remove('hidden');
-        appContainer.classList.add('hidden');
-        deviceBlockedNotice.classList.remove('hidden');
-        deviceBlockedReason.textContent = 'Mobile access is disabled. Open on your authorized PC.';
-        passkeyAuthBtn.classList.add('hidden');
-        enrollDeviceBtn.classList.add('hidden');
-        return;
-      }
+    headerLoginBtn.addEventListener('click', () => {
+      authErrorMessage.classList.add('hidden');
+      authModal.classList.remove('hidden');
+    });
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const activationToken = urlParams.get('activate');
-      const trialToken      = urlParams.get('trial');
-      const masterSetupKey  = urlParams.get('setup_admin');
-      const registeredDevice = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
-      const sessionToken    = localStorage.getItem(STORAGE_VAULT_TOKEN);
+    closeAuthModalBtn.addEventListener('click', () => {
+      authModal.classList.add('hidden');
+    });
 
-      /* --- CASE 1: PUBLIC TRIAL LINK PRESENT (?trial=...) --- */
-      if (trialToken) {
-        const verification = await verifyToken(trialToken);
-        if (verification.valid && verification.payload.type === 'public_trial') {
-          unlockWorkspace(true);
-          updateTrialBadgeDisplay();
-          showToast(`Welcome! Free Trial active (${Math.max(0, MAX_TRIAL_USES - getTrialUsageCount())} exports remaining)`, 'info');
-          if (window.va) window.va('event', { name: 'trial_link_opened' });
-          if (getTrialUsageCount() >= MAX_TRIAL_USES) {
-            subscriptionModal.classList.remove('hidden');
-          }
-          return;
-        } else {
-          deviceBlockedNotice.classList.remove('hidden');
-          deviceBlockedReason.textContent = 'Trial Link Invalid or Expired: ' + verification.reason;
-          passkeyAuthBtn.classList.add('hidden');
-          enrollDeviceBtn.classList.add('hidden');
-          cryptoShield.classList.remove('hidden');
-          appContainer.classList.add('hidden');
-          return;
-        }
-      }
-
-      /* --- CASE 2: PERMANENT 1-TIME ACTIVATION LINK (?activate=...) --- */
-      if (activationToken) {
-        const verification = await verifyToken(activationToken);
-        if (verification.valid && verification.payload.type === 'permanent_enroll') {
-          activeValidActivationToken = verification.payload;
-          invitationDetectedBanner.classList.remove('hidden');
-          enrollDeviceBtn.classList.remove('hidden');
-          enrollDeviceBtn.textContent = 'Register & Authorize This PC';
-          passkeyAuthBtn.classList.add('hidden');
-          deviceBlockedNotice.classList.add('hidden');
-          deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-key text-emerald-400"></i> Valid Activation Key';
-          cryptoShield.classList.remove('hidden');
-          appContainer.classList.add('hidden');
-          return;
-        } else {
-          deviceBlockedNotice.classList.remove('hidden');
-          deviceBlockedReason.textContent = 'Activation Failed: ' + verification.reason;
-          passkeyAuthBtn.classList.add('hidden');
-          enrollDeviceBtn.classList.add('hidden');
-          cryptoShield.classList.remove('hidden');
-          appContainer.classList.add('hidden');
-          return;
-        }
-      }
-
-      /* --- CASE 3: MASTER ADMIN FIRST-TIME SETUP KEY (?setup_admin=master2026) --- */
-      // Only you can enroll a fresh computer as the primary admin by opening with ?setup_admin=master2026
-      if (masterSetupKey === 'master2026' && !registeredDevice) {
-        enrollDeviceBtn.classList.remove('hidden');
-        enrollDeviceBtn.textContent = 'Enroll This PC as Master Admin Device';
-        passkeyAuthBtn.classList.add('hidden');
-        deviceBlockedNotice.classList.add('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-crown text-amber-400"></i> Master Admin Initial Setup';
-        cryptoShield.classList.remove('hidden');
-        appContainer.classList.add('hidden');
-        return;
-      }
-
-      /* --- CASE 4: REGISTERED AUTHORIZED PC VISITING PLAIN URL --- */
-      if (registeredDevice) {
-        // If current session is still valid in memory
-        if (sessionToken === 'hardware_authenticated') {
-          unlockWorkspace(false);
-          return;
-        }
-        // Machine is enrolled; show biometric unlock button
-        passkeyAuthBtn.classList.remove('hidden');
-        enrollDeviceBtn.classList.add('hidden');
-        deviceBlockedNotice.classList.add('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Authorized Workstation Enrolled';
-        cryptoShield.classList.remove('hidden');
-        appContainer.classList.add('hidden');
-        return;
-      }
-
-      /* --- CASE 5: RANDOM STRANGER / UNINVITED VISITOR VISITING PLAIN URL --- */
-      // Complete lockdown. NO enroll button is shown.
-      enrollDeviceBtn.classList.add('hidden');
-      passkeyAuthBtn.classList.add('hidden');
-      deviceBlockedNotice.classList.remove('hidden');
-      deviceBlockedReason.textContent = 'Access Restricted: This PC is not registered in the hardware vault. An official single-use invitation link or public trial link is required.';
-      deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-ban text-rose-400"></i> Access Denied';
-      cryptoShield.classList.remove('hidden');
-      appContainer.classList.add('hidden');
-    }
-
-    function unlockWorkspace(isTrial = false) {
-      state.isUnlocked = true;
-      state.isTrial = isTrial;
-      cryptoShield.classList.add('hidden');
-      appContainer.classList.remove('hidden');
-      loadSavedDefaultSettings();
-
-      if (isTrial) {
-        sessionStatusBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1';
-        sessionStatusBadge.innerHTML = '<i class="fa-solid fa-clock text-[9px]"></i> Free Trial Mode';
-        trialHeaderBadge.classList.remove('hidden');
-        trialHeaderBadge.classList.add('flex');
-        headerPlansBtn.classList.remove('hidden');
-        headerPlansBtn.classList.add('flex');
-        updateTrialBadgeDisplay();
-        openInviteModalBtn.classList.add('hidden');
-        openTrialModalBtn.classList.add('hidden');
+    toggleAuthModeBtn.addEventListener('click', () => {
+      isSignUpMode = !isSignUpMode;
+      authErrorMessage.classList.add('hidden');
+      if (isSignUpMode) {
+        authModalTitle.textContent = 'Create New Account';
+        authSubmitBtn.textContent = 'Sign Up';
+        toggleAuthModeBtn.textContent = 'Already have an account? Sign In';
       } else {
-        sessionStatusBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1';
-        sessionStatusBadge.innerHTML = '<i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified (Admin)';
-        trialHeaderBadge.classList.add('hidden');
-        headerPlansBtn.classList.add('hidden');
-        openInviteModalBtn.classList.remove('hidden');
-        openTrialModalBtn.classList.remove('hidden');
+        authModalTitle.textContent = 'Sign In to PDF Studio';
+        authSubmitBtn.textContent = 'Sign In';
+        toggleAuthModeBtn.textContent = "Don't have an account? Sign Up Free";
       }
-    }
-
-    passkeyAuthBtn.addEventListener('click', async () => { await authenticateWithHardwarePasskey(); });
-    enrollDeviceBtn.addEventListener('click', async () => { await enrollCurrentDevice(); });
-
-    lockWorkspaceBtn.addEventListener('click', () => {
-      localStorage.removeItem(STORAGE_VAULT_TOKEN);
-      state.isUnlocked = false;
-      cryptoError.classList.add('hidden');
-      initAuthenticationCheck();
-      showToast('Workspace locked', 'info');
     });
 
-    /* --- Permanent 1-Time Link Modal Listeners --- */
-    openInviteModalBtn.addEventListener('click', () => {
-      generatedLinkArea.classList.add('hidden');
-      inviteModal.classList.remove('hidden');
-    });
-    closeInviteModalBtn.addEventListener('click', () => { inviteModal.classList.add('hidden'); });
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      authErrorMessage.classList.add('hidden');
+      authSubmitBtn.disabled = true;
+      authSubmitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...`;
 
-    generateInviteBtn.addEventListener('click', async () => {
-      const hours = parseInt(inviteExpireSelect.value) || 24;
-      const token = await createSignedActivationToken(hours);
-      const origin = window.location.origin + window.location.pathname;
-      generatedLinkInput.value = `${origin}?activate=${token}`;
-      generatedLinkArea.classList.remove('hidden');
-      showToast('Single-use activation link created!', 'success');
-    });
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
 
-    copyInviteLinkBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(generatedLinkInput.value);
-        copyInviteLinkBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied!';
-        setTimeout(() => { copyInviteLinkBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }, 2000);
-        showToast('Link copied to clipboard.', 'info');
+        if (isSignUpMode) {
+          await auth.createUserWithEmailAndPassword(email, password);
+          showToast('Account created successfully!', 'success');
+        } else {
+          await auth.signInWithEmailAndPassword(email, password);
+          showToast('Signed in successfully!', 'success');
+        }
       } catch (err) {
-        generatedLinkInput.select();
-        document.execCommand('copy');
-        showToast('Link copied!', 'info');
+        console.error(err);
+        authErrorText.textContent = err.message || 'Authentication failed.';
+        authErrorMessage.classList.remove('hidden');
+      } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
       }
     });
 
-    /* --- Public Trial Link Modal Listeners --- */
-    openTrialModalBtn.addEventListener('click', () => {
-      generatedTrialArea.classList.add('hidden');
-      trialModal.classList.remove('hidden');
-    });
-    closeTrialModalBtn.addEventListener('click', () => { trialModal.classList.add('hidden'); });
-
-    generateTrialBtn.addEventListener('click', async () => {
-      const hours = parseInt(trialExpireSelect.value) || 168;
-      const token = await createSignedTrialToken(hours);
-      const origin = window.location.origin + window.location.pathname;
-      generatedTrialInput.value = `${origin}?trial=${token}`;
-      generatedTrialArea.classList.remove('hidden');
-      showToast('Public trial link created!', 'success');
-    });
-
-    copyTrialLinkBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(generatedTrialInput.value);
-        copyTrialLinkBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Copied!';
-        setTimeout(() => { copyTrialLinkBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }, 2000);
-        showToast('Trial link copied to clipboard.', 'info');
-      } catch (err) {
-        generatedTrialInput.select();
-        document.execCommand('copy');
-        showToast('Trial link copied!', 'info');
+    headerLogoutBtn.addEventListener('click', async () => {
+      if (auth) {
+        await auth.signOut();
+        showToast('Signed out successfully', 'info');
       }
-    });
-
-    openShortenerBtn.addEventListener('click', () => {
-      const longUrl = encodeURIComponent(generatedTrialInput.value);
-      window.open(`https://tinyurl.com/create.php?url=${longUrl}`, '_blank');
-      showToast('Opened TinyURL Generator in new tab.', 'info');
-    });
-
-    closeSubModalBtn.addEventListener('click', () => {
-      subscriptionModal.classList.add('hidden');
     });
 
     /* =========================================================================
-     * SUBSCRIPTION & INR PRICING PLANS MODAL LOGIC
+     * 5. MASTER ADMIN PORTAL ENGINE (FIRESTORE LIVE SYNC)
      * ========================================================================= */
-    showPricingPlansBtn.addEventListener('click', () => {
-      subscriptionModal.classList.add('hidden');
-      pricingPlansModal.classList.remove('hidden');
+    openAdminPortalBtn.addEventListener('click', async () => {
+      adminPortalModal.classList.remove('hidden');
+      await loadAdminUsersList();
     });
 
-    headerPlansBtn.addEventListener('click', () => {
+    closeAdminPortalBtn.addEventListener('click', () => {
+      adminPortalModal.classList.add('hidden');
+    });
+
+    refreshUsersBtn.addEventListener('click', async () => {
+      await loadAdminUsersList();
+    });
+
+    async function loadAdminUsersList() {
+      adminUsersTableBody.innerHTML = `
+        <tr><td colspan="6" class="p-8 text-center text-slate-500">
+          <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Querying user directory...
+        </td></tr>
+      `;
+
+      try {
+        const snapshot = await db.collection('users').get();
+        allLoadedAdminUsers = [];
+        snapshot.forEach(doc => {
+          allLoadedAdminUsers.push({ id: doc.id, ...doc.data() });
+        });
+        renderAdminUsersTable(allLoadedAdminUsers);
+      } catch (err) {
+        console.error(err);
+        adminUsersTableBody.innerHTML = `
+          <tr><td colspan="6" class="p-6 text-center text-rose-400">
+            Failed to load users: ${err.message}
+          </td></tr>
+        `;
+      }
+    }
+
+    function renderAdminUsersTable(users) {
+      adminTotalUsers.textContent = users.length;
+      let activeCount = 0;
+
+      if (users.length === 0) {
+        adminUsersTableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">No registered users found.</td></tr>`;
+        adminActiveUsers.textContent = 0;
+        return;
+      }
+
+      const rowsHtml = users.map(u => {
+        const now = new Date();
+        const rawExp = u.subscription_expires_at;
+        const expDate = rawExp ? (rawExp.toDate ? rawExp.toDate() : new Date(rawExp)) : null;
+        const isActive = (u.status === 'active' && (u.plan === 'lifetime' || (expDate && expDate > now)));
+        if (isActive) activeCount++;
+
+        const expFormatted = u.plan === 'lifetime' ? 'Lifetime' : (expDate ? expDate.toLocaleDateString() : 'None');
+
+        return `
+          <tr class="hover:bg-slate-900/60 transition">
+            <td class="p-3.5 font-medium text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+              ${u.email}
+              ${u.role === 'admin' ? '<span class="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-bold">Admin</span>' : ''}
+            </td>
+            <td class="p-3.5 font-mono text-slate-300 text-[11px]">${u.plan || 'free_trial'}</td>
+            <td class="p-3.5">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${isActive ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'}">
+                ${isActive ? 'Active' : (u.status || 'Inactive')}
+              </span>
+            </td>
+            <td class="p-3.5 font-mono">${u.trial_used || 0} / ${u.max_trial || 3}</td>
+            <td class="p-3.5 font-mono text-[11px] text-slate-400">${expFormatted}</td>
+            <td class="p-3.5 text-right space-x-1">
+              <button onclick="adminGrantSubscription('${u.id}', 1, '1_month')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-semibold transition" title="Add 1 Month">+1 Mo</button>
+              <button onclick="adminGrantSubscription('${u.id}', 3, '3_months')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-semibold transition" title="Add 3 Months">+3 Mo</button>
+              <button onclick="adminGrantSubscription('${u.id}', 6, '6_months')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-semibold transition" title="Add 6 Months">+6 Mo</button>
+              <button onclick="adminGrantSubscription('${u.id}', 12, '12_months')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-[10px] font-semibold transition" title="Add 1 Year">+1 Yr</button>
+              <button onclick="adminRevokeAccess('${u.id}')" class="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded text-[10px] font-semibold transition" title="Revoke Access">Revoke</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      adminUsersTableBody.innerHTML = rowsHtml;
+      adminActiveUsers.textContent = activeCount;
+    }
+
+    // Filter table by search input
+    adminSearchInput.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      const filtered = allLoadedAdminUsers.filter(u => u.email.toLowerCase().includes(q));
+      renderAdminUsersTable(filtered);
+    });
+
+    // Admin Action: Extend/Grant Subscription
+    window.adminGrantSubscription = async function(userId, months, planName) {
+      try {
+        const newExpiration = new Date();
+        newExpiration.setMonth(newExpiration.getMonth() + months);
+
+        await db.collection('users').doc(userId).update({
+          plan: planName,
+          status: 'active',
+          subscription_expires_at: firebase.firestore.Timestamp.fromDate(newExpiration)
+        });
+
+        showToast(`Successfully granted ${months} month(s) access!`, 'success');
+        await loadAdminUsersList();
+      } catch (err) {
+        console.error(err);
+        showToast(`Failed to update user: ${err.message}`, 'error');
+      }
+    };
+
+    // Admin Action: Revoke Access
+    window.adminRevokeAccess = async function(userId) {
+      try {
+        await db.collection('users').doc(userId).update({
+          status: 'expired',
+          subscription_expires_at: firebase.firestore.Timestamp.fromDate(new Date(0))
+        });
+
+        showToast(`User subscription revoked.`, 'info');
+        await loadAdminUsersList();
+      } catch (err) {
+        console.error(err);
+        showToast(`Error: ${err.message}`, 'error');
+      }
+    };
+
+    /* =========================================================================
+     * 6. SUBSCRIPTION & INR PRICING PLANS
+     * ========================================================================= */
+    openPricingBtn.addEventListener('click', () => {
       pricingPlansModal.classList.remove('hidden');
     });
 
@@ -1286,7 +1051,6 @@
       pricingPlansModal.classList.add('hidden');
     });
 
-    // Plan Selection Interaction
     planCards.forEach(card => {
       card.addEventListener('click', () => {
         planCards.forEach(c => {
@@ -1315,21 +1079,22 @@
       });
     });
 
-    // Order Via WhatsApp (No private phone number exposed on Github)
     orderViaWhatsAppBtn.addEventListener('click', () => {
+      const userRef = appState.user ? appState.user.email : 'New Customer';
       const message = encodeURIComponent(
         `Hello Admin! I would like to subscribe to PDF Precision Studio.\n\n` +
+        `• Account Email: ${userRef}\n` +
         `• Plan: ${currentSelectedPlan.duration}\n` +
         `• Price: ₹${currentSelectedPlan.price}\n\n` +
-        `Please share the payment details and my 1-Time PC activation link.`
+        `Please share payment details to activate my cloud subscription.`
       );
       window.open(`https://wa.me/?text=${message}`, '_blank');
       showToast('Opening WhatsApp with your plan details...', 'info');
     });
 
-    // Copy Plan Details to Clipboard
     copyPlanDetailsBtn.addEventListener('click', async () => {
-      const summaryText = `PDF Precision Studio Subscription Inquiry:\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}\nFeatures: Unlimited PDF Crops, Dedicated Hardware PC Auth`;
+      const userRef = appState.user ? appState.user.email : 'New Customer';
+      const summaryText = `PDF Precision Studio Subscription Inquiry:\nUser: ${userRef}\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}`;
       try {
         await navigator.clipboard.writeText(summaryText);
         copyPlanDetailsBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
@@ -1341,7 +1106,7 @@
     });
 
     /* =========================================================================
-     * PDF PRECISION CROP STUDIO LOGIC
+     * 7. PDF CROP STUDIO LOGIC (100% CLIENT-SIDE)
      * ========================================================================= */
     const SECTION_PRESETS = {
       1: { start: 0.0, end: 33.333, label: 'Section 1 (Top 1/3)' },
@@ -1355,31 +1120,31 @@
         if (saved) {
           const parsed = JSON.parse(saved);
           if (typeof parsed.startPercent === 'number' && typeof parsed.endPercent === 'number') {
-            state.cropBounds.startPercent = parsed.startPercent;
-            state.cropBounds.endPercent = parsed.endPercent;
-            state.activePreset = parsed.activePreset ?? null;
+            appState.cropBounds.startPercent = parsed.startPercent;
+            appState.cropBounds.endPercent = parsed.endPercent;
+            appState.activePreset = parsed.activePreset ?? null;
           }
         }
       } catch (e) {}
     }
 
     dropZone.addEventListener('click', () => {
-      if (checkTrialLimitOrShowPaywall()) return;
+      if (!canUserExport()) return;
       fileInput.click();
     });
     dropZone.addEventListener('dragover', (e) => { 
       e.preventDefault(); 
-      if (!checkTrialLimitOrShowPaywall()) dropZone.classList.add('border-brand-500'); 
+      if (canUserExport()) dropZone.classList.add('border-brand-500'); 
     });
     dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('border-brand-500'); });
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('border-brand-500');
-      if (checkTrialLimitOrShowPaywall()) return;
+      if (!canUserExport()) return;
       if (e.dataTransfer.files?.[0]) handleIncomingPdf(e.dataTransfer.files[0]);
     });
     fileInput.addEventListener('change', (e) => {
-      if (checkTrialLimitOrShowPaywall()) return;
+      if (!canUserExport()) return;
       if (e.target.files?.[0]) handleIncomingPdf(e.target.files[0]);
     });
 
@@ -1387,8 +1152,8 @@
       fileInput.value = '';
       uploadSection.classList.remove('hidden');
       workspaceSection.classList.add('hidden');
-      state.rawPdfBytes = null;
-      state.pdfDocument = null;
+      appState.rawPdfBytes = null;
+      appState.pdfDocument = null;
     });
 
     function handleIncomingPdf(file) {
@@ -1396,37 +1161,32 @@
         showToast('Please select a valid PDF file.', 'error');
         return;
       }
-      state.fileName = file.name;
+      appState.fileName = file.name;
       const reader = new FileReader();
       reader.onload = async function(ev) {
-        state.rawPdfBytes = new Uint8Array(ev.target.result.slice(0));
+        appState.rawPdfBytes = new Uint8Array(ev.target.result.slice(0));
         await loadPdfDocument();
       };
       reader.readAsArrayBuffer(file);
     }
 
-    async function loadPdfDocument(password = '') {
+    async function loadPdfDocument() {
       try {
-        const loadingTask = pdfjsLib.getDocument({
-          data: state.rawPdfBytes.slice(0),
-          password: password
-        });
-
+        const loadingTask = pdfjsLib.getDocument({ data: appState.rawPdfBytes.slice(0) });
         const pdf = await loadingTask.promise;
-        state.pdfDocument = pdf;
-        state.totalPages = pdf.numPages;
-        state.currentPage = 1;
+        appState.pdfDocument = pdf;
+        appState.totalPages = pdf.numPages;
+        appState.currentPage = 1;
 
         uploadSection.classList.add('hidden');
         workspaceSection.classList.remove('hidden');
-        totalPagesNum.textContent = state.totalPages;
-        currentPageNum.textContent = state.currentPage;
+        totalPagesNum.textContent = appState.totalPages;
+        currentPageNum.textContent = appState.currentPage;
 
-        applySectionPreset(state.activePreset || 3);
+        applySectionPreset(appState.activePreset || 3);
         fitZoomToContainer();
         renderCurrentPage();
-        showToast(`Loaded ${state.fileName}`, 'success');
-        if (window.va) window.va('event', { name: 'pdf_loaded', totalPages: state.totalPages });
+        showToast(`Loaded ${appState.fileName}`, 'success');
       } catch (err) {
         console.error(err);
         showToast('Failed to load PDF.', 'error');
@@ -1434,11 +1194,11 @@
     }
 
     async function renderCurrentPage() {
-      if (!state.pdfDocument || state.isRendering) return;
-      state.isRendering = true;
+      if (!appState.pdfDocument || appState.isRendering) return;
+      appState.isRendering = true;
       try {
-        const page = await state.pdfDocument.getPage(state.currentPage);
-        const viewport = page.getViewport({ scale: state.zoom });
+        const page = await appState.pdfDocument.getPage(appState.currentPage);
+        const viewport = page.getViewport({ scale: appState.zoom });
         const outputScale = window.devicePixelRatio || 1;
 
         pdfCanvas.width = Math.floor(viewport.width * outputScale);
@@ -1458,17 +1218,17 @@
       } catch (e) {
         console.error(e);
       } finally {
-        state.isRendering = false;
+        appState.isRendering = false;
       }
-      prevPageBtn.disabled = state.currentPage <= 1;
-      nextPageBtn.disabled = state.currentPage >= state.totalPages;
-      currentPageNum.textContent = state.currentPage;
-      zoomLevelText.textContent = `${Math.round(state.zoom * 100)}%`;
+      prevPageBtn.disabled = appState.currentPage <= 1;
+      nextPageBtn.disabled = appState.currentPage >= appState.totalPages;
+      currentPageNum.textContent = appState.currentPage;
+      zoomLevelText.textContent = `${Math.round(appState.zoom * 100)}%`;
     }
 
     function positionOverlayElements() {
-      const start = Math.max(0, Math.min(100, state.cropBounds.startPercent));
-      const end = Math.max(start + 1, Math.min(100, state.cropBounds.endPercent));
+      const start = Math.max(0, Math.min(100, appState.cropBounds.startPercent));
+      const end = Math.max(start + 1, Math.min(100, appState.cropBounds.endPercent));
       const height = end - start;
 
       topDimmedMask.style.height = `${start}%`;
@@ -1479,15 +1239,15 @@
       bottomHandle.style.top = `calc(${end}% - 7px)`;
 
       cropHeightDimension.textContent = `${height.toFixed(1)}%`;
-      cropBoxBadge.textContent = state.activePreset ? `Section ${state.activePreset}` : 'Custom Cut';
+      cropBoxBadge.textContent = appState.activePreset ? `Section ${appState.activePreset}` : 'Custom Cut';
     }
 
     function syncUIFromBounds() {
-      inputStartY.value = state.cropBounds.startPercent.toFixed(1);
-      inputEndY.value = state.cropBounds.endPercent.toFixed(1);
+      inputStartY.value = appState.cropBounds.startPercent.toFixed(1);
+      inputEndY.value = appState.cropBounds.endPercent.toFixed(1);
       presetButtons.forEach(btn => {
         const sec = parseInt(btn.getAttribute('data-sec-btn'));
-        if (state.activePreset === sec) {
+        if (appState.activePreset === sec) {
           btn.className = 'preset-btn active flex flex-col items-center justify-center p-2 rounded-xl border-2 border-brand-500 bg-brand-500/15 text-xs text-brand-300 font-bold';
         } else {
           btn.className = 'preset-btn flex flex-col items-center justify-center p-2 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-xs';
@@ -1498,9 +1258,9 @@
 
     function applySectionPreset(sec) {
       if (SECTION_PRESETS[sec]) {
-        state.cropBounds.startPercent = SECTION_PRESETS[sec].start;
-        state.cropBounds.endPercent = SECTION_PRESETS[sec].end;
-        state.activePreset = sec;
+        appState.cropBounds.startPercent = SECTION_PRESETS[sec].start;
+        appState.cropBounds.endPercent = SECTION_PRESETS[sec].end;
+        appState.activePreset = sec;
         syncUIFromBounds();
       }
     }
@@ -1512,40 +1272,40 @@
     });
 
     inputStartY.addEventListener('change', (e) => {
-      state.cropBounds.startPercent = Math.max(0, Math.min(state.cropBounds.endPercent - 4, parseFloat(e.target.value) || 0));
-      state.activePreset = null;
+      appState.cropBounds.startPercent = Math.max(0, Math.min(appState.cropBounds.endPercent - 4, parseFloat(e.target.value) || 0));
+      appState.activePreset = null;
       syncUIFromBounds();
     });
     inputEndY.addEventListener('change', (e) => {
-      state.cropBounds.endPercent = Math.max(state.cropBounds.startPercent + 4, Math.min(100, parseFloat(e.target.value) || 100));
-      state.activePreset = null;
+      appState.cropBounds.endPercent = Math.max(appState.cropBounds.startPercent + 4, Math.min(100, parseFloat(e.target.value) || 100));
+      appState.activePreset = null;
       syncUIFromBounds();
     });
 
     setAsDefaultBtn.addEventListener('click', () => {
-      localStorage.setItem(DEFAULT_STORAGE_KEY, JSON.stringify(state.cropBounds));
+      localStorage.setItem(DEFAULT_STORAGE_KEY, JSON.stringify(appState.cropBounds));
       showToast('Selection saved as default preset!', 'success');
     });
 
     function fitZoomToContainer() {
       if (!previewScrollArea) return;
-      state.zoom = Math.max(0.5, Math.min(1.2, +((previewScrollArea.clientWidth - 40) / 620).toFixed(2)));
+      appState.zoom = Math.max(0.5, Math.min(1.2, +((previewScrollArea.clientWidth - 40) / 620).toFixed(2)));
       renderCurrentPage();
     }
     zoomFitBtn.addEventListener('click', fitZoomToContainer);
-    zoomInBtn.addEventListener('click', () => { state.zoom = Math.min(2.5, state.zoom + 0.15); renderCurrentPage(); });
-    zoomOutBtn.addEventListener('click', () => { state.zoom = Math.max(0.4, state.zoom - 0.15); renderCurrentPage(); });
-    prevPageBtn.addEventListener('click', () => { if (state.currentPage > 1) { state.currentPage--; renderCurrentPage(); } });
-    nextPageBtn.addEventListener('click', () => { if (state.currentPage < state.totalPages) { state.currentPage++; renderCurrentPage(); } });
+    zoomInBtn.addEventListener('click', () => { appState.zoom = Math.min(2.5, appState.zoom + 0.15); renderCurrentPage(); });
+    zoomOutBtn.addEventListener('click', () => { appState.zoom = Math.max(0.4, appState.zoom - 0.15); renderCurrentPage(); });
+    prevPageBtn.addEventListener('click', () => { if (appState.currentPage > 1) { appState.currentPage--; renderCurrentPage(); } });
+    nextPageBtn.addEventListener('click', () => { if (appState.currentPage < appState.totalPages) { appState.currentPage++; renderCurrentPage(); } });
 
     // Draggable crop bounds
     let activeDrag = null, dragStartY = 0, initialStart = 0, initialEnd = 0;
     function startDragging(mode, clientY) {
       activeDrag = mode;
       dragStartY = clientY;
-      initialStart = state.cropBounds.startPercent;
-      initialEnd = state.cropBounds.endPercent;
-      state.activePreset = null;
+      initialStart = appState.cropBounds.startPercent;
+      initialEnd = appState.cropBounds.endPercent;
+      appState.activePreset = null;
     }
     topHandle.addEventListener('mousedown', (e) => { e.stopPropagation(); startDragging('top', e.clientY); });
     bottomHandle.addEventListener('mousedown', (e) => { e.stopPropagation(); startDragging('bottom', e.clientY); });
@@ -1557,38 +1317,36 @@
       const rect = canvasWrapper.getBoundingClientRect();
       const deltaPercent = ((e.clientY - dragStartY) / rect.height) * 100;
       if (activeDrag === 'top') {
-        state.cropBounds.startPercent = Math.max(0, Math.min(state.cropBounds.endPercent - 4, initialStart + deltaPercent));
+        appState.cropBounds.startPercent = Math.max(0, Math.min(appState.cropBounds.endPercent - 4, initialStart + deltaPercent));
       } else if (activeDrag === 'bottom') {
-        state.cropBounds.endPercent = Math.max(state.cropBounds.startPercent + 4, Math.min(100, initialEnd + deltaPercent));
+        appState.cropBounds.endPercent = Math.max(appState.cropBounds.startPercent + 4, Math.min(100, initialEnd + deltaPercent));
       } else if (activeDrag === 'middle') {
         const span = initialEnd - initialStart;
         let s = initialStart + deltaPercent;
         let end = initialEnd + deltaPercent;
         if (s < 0) { s = 0; end = span; }
         if (end > 100) { end = 100; s = 100 - span; }
-        state.cropBounds.startPercent = s;
-        state.cropBounds.endPercent = end;
+        appState.cropBounds.startPercent = s;
+        appState.cropBounds.endPercent = end;
       }
       syncUIFromBounds();
     });
     window.addEventListener('mouseup', () => { activeDrag = null; });
 
-    // PDF Exporter (With Trial Metering Counter Hook)
+    // PDF Exporter with automated trial metering
     downloadPdfBtn.addEventListener('click', async () => {
-      if (!state.rawPdfBytes) return;
-
-      // Check trial paywall
-      if (checkTrialLimitOrShowPaywall()) return;
+      if (!appState.rawPdfBytes) return;
+      if (!canUserExport()) return;
 
       downloadPdfBtn.disabled = true;
       downloadPdfBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...`;
       try {
         const { PDFDocument, rgb } = PDFLib;
-        const topRatio = state.cropBounds.startPercent / 100.0;
-        const bottomRatio = state.cropBounds.endPercent / 100.0;
+        const topRatio = appState.cropBounds.startPercent / 100.0;
+        const bottomRatio = appState.cropBounds.endPercent / 100.0;
         const outputFormat = document.querySelector('input[name="outputFormat"]:checked').value;
 
-        const srcDoc = await PDFDocument.load(state.rawPdfBytes.slice(0), { ignoreEncryption: true });
+        const srcDoc = await PDFDocument.load(appState.rawPdfBytes.slice(0), { ignoreEncryption: true });
         const pages = srcDoc.getPages();
 
         if (outputFormat === 'cropbox_only') {
@@ -1618,26 +1376,18 @@
         const blob = new Blob([bytes], { type: 'application/pdf' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `${state.fileName.replace(/\.pdf$/i, '')}_cropped.pdf`;
+        a.download = `${appState.fileName.replace(/\.pdf$/i, '')}_cropped.pdf`;
         a.click();
 
-        // Increment trial usage if in trial mode
-        if (state.isTrial) {
-          const used = incrementTrialUsageCount();
-          const remaining = Math.max(0, MAX_TRIAL_USES - used);
-          if (remaining > 0) {
-            showToast(`Exported! Free trial uses remaining: ${remaining}/${MAX_TRIAL_USES}`, 'info');
-          } else {
-            showToast(`Free trial completed (${MAX_TRIAL_USES}/${MAX_TRIAL_USES} used). Upgrade required for further exports.`, 'info');
-            setTimeout(() => {
-              subscriptionModal.classList.remove('hidden');
-            }, 800);
-          }
-        } else {
-          showToast('PDF Exported Successfully!', 'success');
+        // Meter guest trial if not paid/admin
+        if (!appState.isAdmin && !appState.isPaidActive) {
+          appState.guestTrialsUsed++;
+          localStorage.setItem('pdf_guest_trials', appState.guestTrialsUsed.toString());
+          updateUIWithGuestState();
         }
 
-        if (window.va) window.va('event', { name: 'pdf_exported', isTrial: state.isTrial });
+        showToast('PDF Exported Successfully!', 'success');
+        if (window.va) window.va('event', { name: 'pdf_exported', isPaid: appState.isPaidActive });
       } catch (err) {
         console.error(err);
         showToast('Failed to export PDF: ' + err.message, 'error');
@@ -1647,7 +1397,8 @@
       }
     });
 
-    initAuthenticationCheck();
+    loadSavedDefaultSettings();
+    initAuth();
   </script>
 </body>
 </html>
