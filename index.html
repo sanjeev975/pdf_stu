@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Studio - Hardware Vault</title>
+  <title>PDF Precision Studio - Hardware Vault</title>
   
   <!-- Vercel Web Analytics for Plain HTML Sites -->
   <script>
@@ -128,37 +128,39 @@
           Access is restricted to authorized workstations. Hardware biometric challenge required.
         </p>
 
-        <!-- Blocked Device Alert -->
+        <!-- Blocked / Unauthorized Notice (Shown to random public visitors without token) -->
         <div id="deviceBlockedNotice" class="hidden text-xs text-rose-300 bg-rose-500/15 border border-rose-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
           <div class="font-bold flex items-center gap-2 text-rose-400">
             <i class="fa-solid fa-ban"></i> Access Denied: Unauthorized Device
           </div>
           <p id="deviceBlockedReason" class="text-[11px] text-slate-300 leading-normal">
-            This machine or mobile device does not contain the master hardware encryption key.
+            This workstation does not have a verified hardware passkey. Access requires an official single-use invitation or public trial link.
           </p>
         </div>
 
-        <!-- Single-Use Activation Badge -->
+        <!-- Single-Use Activation Badge (Only visible when a valid signed token is present) -->
         <div id="invitationDetectedBanner" class="hidden text-xs text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 p-3.5 rounded-2xl mb-4 text-left space-y-1">
           <div class="font-bold flex items-center gap-2 text-emerald-400">
             <i class="fa-solid fa-key"></i> Single-Use Activation Key Valid
           </div>
           <p class="text-[11px] text-slate-300 leading-normal">
-            Click the button below to register this PC. This activation link will permanently expire after registration.
+            Click below to register this PC. This activation link will permanently expire upon registration.
           </p>
         </div>
 
-        <!-- Passkey Hardware Button -->
+        <!-- Action Buttons -->
         <div id="passkeySection" class="space-y-3 mb-4">
+          <!-- Unlock with Passkey (Only shown if this PC is already enrolled) -->
           <button 
             type="button" 
             id="passkeyAuthBtn"
-            class="w-full py-3.5 px-4 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/30 transition duration-200 flex items-center justify-center gap-2.5 active:scale-[0.98]"
+            class="hidden w-full py-3.5 px-4 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/30 transition duration-200 flex items-center justify-center gap-2.5 active:scale-[0.98]"
           >
             <i class="fa-solid fa-fingerprint text-base"></i>
             <span id="passkeyBtnText">Unlock with Windows Hello / Touch ID</span>
           </button>
 
+          <!-- Register This PC (STRICTLY HIDDEN unless valid ?activate= token is provided) -->
           <button 
             type="button" 
             id="enrollDeviceBtn"
@@ -176,9 +178,9 @@
 
         <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
           <span id="deviceRegistrationBadge" class="flex items-center gap-1.5 text-slate-400">
-            <i class="fa-solid fa-lock text-emerald-400"></i> Hardware Lock Active
+            <i class="fa-solid fa-lock text-rose-400"></i> Protected Workstation
           </span>
-          <span class="text-[10px] text-slate-500 font-mono">v7.3-trial-vault</span>
+          <span class="text-[10px] text-slate-500 font-mono">v7.4-locked</span>
         </div>
       </div>
     </div>
@@ -196,7 +198,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            PDF Studio
+            PDF Precision Studio
             <span id="sessionStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
               <i class="fa-solid fa-fingerprint text-[9px]"></i> Hardware Verified
             </span>
@@ -694,7 +696,7 @@
     /* =========================================================================
      * TRIAL COUNTER CONFIGURATION: CHANGE THIS VALUE TO MODIFY ALLOWED TRIALS
      * ========================================================================= */
-    const MAX_TRIAL_USES           = 5; // 
+    const MAX_TRIAL_USES           = 3; // <-- Change to 5, 10, etc. as desired
 
     function isMobileDevice() {
       const ua = navigator.userAgent || navigator.vendor || window.opera;
@@ -1052,25 +1054,28 @@
     }
 
     /* =========================================================================
-     * AUTHENTICATION FLOW & PUBLIC TRIAL ROUTER
+     * AUTHENTICATION FLOW & PUBLIC TRIAL ROUTER (STRICT LOCKDOWN)
      * ========================================================================= */
     async function initAuthenticationCheck() {
+      // 1. Mobile devices are blocked unconditionally
       if (isMobileDevice()) {
         cryptoShield.classList.remove('hidden');
         appContainer.classList.add('hidden');
         deviceBlockedNotice.classList.remove('hidden');
         deviceBlockedReason.textContent = 'Mobile access is disabled. Open on your authorized PC.';
-        passkeyAuthBtn.disabled = true;
-        passkeyAuthBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        passkeyAuthBtn.classList.add('hidden');
+        enrollDeviceBtn.classList.add('hidden');
         return;
       }
 
       const urlParams = new URLSearchParams(window.location.search);
       const activationToken = urlParams.get('activate');
       const trialToken      = urlParams.get('trial');
+      const masterSetupKey  = urlParams.get('setup_admin');
       const registeredDevice = localStorage.getItem(STORAGE_WEBAUTHN_CRED_ID);
+      const sessionToken    = localStorage.getItem(STORAGE_VAULT_TOKEN);
 
-      /* --- PATH 1: PUBLIC TRIAL LINK PRESENT --- */
+      /* --- CASE 1: PUBLIC TRIAL LINK PRESENT (?trial=...) --- */
       if (trialToken) {
         const verification = await verifyToken(trialToken);
         if (verification.valid && verification.payload.type === 'public_trial') {
@@ -1084,39 +1089,77 @@
           return;
         } else {
           deviceBlockedNotice.classList.remove('hidden');
-          deviceBlockedReason.textContent = 'Trial Link Invalid: ' + verification.reason;
+          deviceBlockedReason.textContent = 'Trial Link Invalid or Expired: ' + verification.reason;
+          passkeyAuthBtn.classList.add('hidden');
+          enrollDeviceBtn.classList.add('hidden');
+          cryptoShield.classList.remove('hidden');
+          appContainer.classList.add('hidden');
+          return;
         }
       }
 
-      /* --- PATH 2: PERMANENT 1-TIME ACTIVATION LINK PRESENT --- */
+      /* --- CASE 2: PERMANENT 1-TIME ACTIVATION LINK (?activate=...) --- */
       if (activationToken) {
         const verification = await verifyToken(activationToken);
-        if (verification.valid) {
+        if (verification.valid && verification.payload.type === 'permanent_enroll') {
           activeValidActivationToken = verification.payload;
           invitationDetectedBanner.classList.remove('hidden');
           enrollDeviceBtn.classList.remove('hidden');
-          deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-envelope-open-text text-emerald-400"></i> Valid Activation Key Present';
+          enrollDeviceBtn.textContent = 'Register & Authorize This PC';
+          passkeyAuthBtn.classList.add('hidden');
+          deviceBlockedNotice.classList.add('hidden');
+          deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-key text-emerald-400"></i> Valid Activation Key';
+          cryptoShield.classList.remove('hidden');
+          appContainer.classList.add('hidden');
+          return;
         } else {
           deviceBlockedNotice.classList.remove('hidden');
           deviceBlockedReason.textContent = 'Activation Failed: ' + verification.reason;
+          passkeyAuthBtn.classList.add('hidden');
+          enrollDeviceBtn.classList.add('hidden');
+          cryptoShield.classList.remove('hidden');
+          appContainer.classList.add('hidden');
+          return;
         }
-      } else if (!registeredDevice) {
-        enrollDeviceBtn.classList.remove('hidden');
-        passkeyAuthBtn.classList.add('hidden');
-        enrollDeviceBtn.textContent = 'Enroll This PC as Master Admin Device';
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-shield text-amber-400"></i> First-Time Master Setup';
-      } else {
-        passkeyAuthBtn.classList.remove('hidden');
-        enrollDeviceBtn.classList.add('hidden');
-        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Device Registered';
       }
 
-      const sessionToken = localStorage.getItem(STORAGE_VAULT_TOKEN);
-      if (sessionToken === 'hardware_authenticated' && registeredDevice) {
-        unlockWorkspace(false);
+      /* --- CASE 3: MASTER ADMIN FIRST-TIME SETUP KEY (?setup_admin=master2026) --- */
+      // Only you can enroll a fresh computer as the primary admin by opening with ?setup_admin=master2026
+      if (masterSetupKey === 'master2026' && !registeredDevice) {
+        enrollDeviceBtn.classList.remove('hidden');
+        enrollDeviceBtn.textContent = 'Enroll This PC as Master Admin Device';
+        passkeyAuthBtn.classList.add('hidden');
+        deviceBlockedNotice.classList.add('hidden');
+        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-crown text-amber-400"></i> Master Admin Initial Setup';
+        cryptoShield.classList.remove('hidden');
+        appContainer.classList.add('hidden');
         return;
       }
 
+      /* --- CASE 4: REGISTERED AUTHORIZED PC VISITING PLAIN URL --- */
+      if (registeredDevice) {
+        // If current session is still valid in memory
+        if (sessionToken === 'hardware_authenticated') {
+          unlockWorkspace(false);
+          return;
+        }
+        // Machine is enrolled; show biometric unlock button
+        passkeyAuthBtn.classList.remove('hidden');
+        enrollDeviceBtn.classList.add('hidden');
+        deviceBlockedNotice.classList.add('hidden');
+        deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-lock text-emerald-400"></i> Authorized Workstation Enrolled';
+        cryptoShield.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+        return;
+      }
+
+      /* --- CASE 5: RANDOM STRANGER / UNINVITED VISITOR VISITING PLAIN URL --- */
+      // Complete lockdown. NO enroll button is shown.
+      enrollDeviceBtn.classList.add('hidden');
+      passkeyAuthBtn.classList.add('hidden');
+      deviceBlockedNotice.classList.remove('hidden');
+      deviceBlockedReason.textContent = 'Access Restricted: This PC is not registered in the hardware vault. An official single-use invitation link or public trial link is required.';
+      deviceRegistrationBadge.innerHTML = '<i class="fa-solid fa-ban text-rose-400"></i> Access Denied';
       cryptoShield.classList.remove('hidden');
       appContainer.classList.add('hidden');
     }
@@ -1155,8 +1198,7 @@
       localStorage.removeItem(STORAGE_VAULT_TOKEN);
       state.isUnlocked = false;
       cryptoError.classList.add('hidden');
-      cryptoShield.classList.remove('hidden');
-      appContainer.classList.add('hidden');
+      initAuthenticationCheck();
       showToast('Workspace locked', 'info');
     });
 
@@ -1273,22 +1315,21 @@
       });
     });
 
-    // Order Via WhatsApp
+    // Order Via WhatsApp (No private phone number exposed on Github)
     orderViaWhatsAppBtn.addEventListener('click', () => {
       const message = encodeURIComponent(
-        `Hello Admin! I would like to subscribe to PDF Studio.\n\n` +
+        `Hello Admin! I would like to subscribe to PDF Precision Studio.\n\n` +
         `• Plan: ${currentSelectedPlan.duration}\n` +
         `• Price: ₹${currentSelectedPlan.price}\n\n` +
         `Please share the payment details and my 1-Time PC activation link.`
       );
-      // Opens WhatsApp Web or App with pre-filled message
       window.open(`https://wa.me/?text=${message}`, '_blank');
       showToast('Opening WhatsApp with your plan details...', 'info');
     });
 
     // Copy Plan Details to Clipboard
     copyPlanDetailsBtn.addEventListener('click', async () => {
-      const summaryText = `PDF Studio Subscription Inquiry:\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}\nFeatures: Unlimited PDF Crops, Dedicated Hardware PC Auth`;
+      const summaryText = `PDF Precision Studio Subscription Inquiry:\nPlan: ${currentSelectedPlan.duration}\nPrice: ₹${currentSelectedPlan.price}\nFeatures: Unlimited PDF Crops, Dedicated Hardware PC Auth`;
       try {
         await navigator.clipboard.writeText(summaryText);
         copyPlanDetailsBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
@@ -1300,7 +1341,7 @@
     });
 
     /* =========================================================================
-     * PDF CROP STUDIO LOGIC
+     * PDF PRECISION CROP STUDIO LOGIC
      * ========================================================================= */
     const SECTION_PRESETS = {
       1: { start: 0.0, end: 33.333, label: 'Section 1 (Top 1/3)' },
