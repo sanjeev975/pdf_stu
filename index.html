@@ -187,7 +187,7 @@
 
         <h2 class="text-2xl font-bold text-white mb-2">Drag & Drop your PDF here</h2>
         <p class="text-slate-400 text-sm max-w-md mx-auto mb-6 leading-relaxed">
-          100% Client-Side. Adjust section boundaries directly on the interactive preview and download your cropped document.
+          100% Client-Side. Adjust section boundaries directly on the interactive preview and download your cropped document. Password-protected PDFs supported.
         </p>
 
         <button type="button" class="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-semibold shadow-lg shadow-indigo-600/30 transition inline-flex items-center gap-2">
@@ -309,6 +309,52 @@
       </aside>
     </div>
   </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: PDF PASSWORD PROMPT (PASSWORD-PROTECTED DOCUMENTS)                 -->
+  <!-- ========================================================================= -->
+  <div id="pdfPasswordModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
+      <button id="closePdfPasswordModalBtn" class="absolute top-5 right-5 text-slate-400 hover:text-white p-2">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center text-xl shadow-lg shadow-amber-500/10">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h3 class="text-xl font-bold text-white">Document is Password Protected</h3>
+        <p class="text-xs text-slate-400 mt-1">This PDF is encrypted. Enter the document password to open and crop it locally.</p>
+      </div>
+
+      <form id="pdfPasswordForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Document Password</label>
+          <div class="relative">
+            <input type="password" id="pdfPasswordInput" required class="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 text-white text-xs rounded-xl p-3 pr-10 outline-none transition" placeholder="Enter password...">
+            <button type="button" id="togglePdfPasswordVisibilityBtn" class="absolute right-3 top-3 text-slate-400 hover:text-white text-xs">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="pdfPasswordErrorMessage" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="pdfPasswordErrorText">Incorrect password. Please try again.</span>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="cancelPdfPasswordBtn" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition">
+            Cancel
+          </button>
+          <button type="submit" id="submitPdfPasswordBtn" class="w-1/2 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+            <span>Unlock PDF</span>
+            <i class="fa-solid fa-unlock text-xs"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- ========================================================================= -->
   <!-- MODAL: AUTHENTICATION (SIGN UP & SIGN IN)                                 -->
@@ -612,6 +658,7 @@
       rawPdfBytes: null,
       pdfDocument: null,
       fileName: 'document.pdf',
+      pdfPassword: null, // Stores document password if provided
       currentPage: 1,
       totalPages: 1,
       zoom: 1.0,
@@ -653,6 +700,18 @@
     const authErrorMessage = document.getElementById('authErrorMessage');
     const authErrorText = document.getElementById('authErrorText');
     let isSignUpMode = false;
+
+    // Password Protected Modal Elements
+    const pdfPasswordModal = document.getElementById('pdfPasswordModal');
+    const closePdfPasswordModalBtn = document.getElementById('closePdfPasswordModalBtn');
+    const cancelPdfPasswordBtn = document.getElementById('cancelPdfPasswordBtn');
+    const pdfPasswordForm = document.getElementById('pdfPasswordForm');
+    const pdfPasswordInput = document.getElementById('pdfPasswordInput');
+    const togglePdfPasswordVisibilityBtn = document.getElementById('togglePdfPasswordVisibilityBtn');
+    const pdfPasswordErrorMessage = document.getElementById('pdfPasswordErrorMessage');
+    const pdfPasswordErrorText = document.getElementById('pdfPasswordErrorText');
+    const submitPdfPasswordBtn = document.getElementById('submitPdfPasswordBtn');
+    let pendingPasswordCallback = null;
 
     const adminPortalModal = document.getElementById('adminPortalModal');
     const closeAdminPortalBtn = document.getElementById('closeAdminPortalBtn');
@@ -1106,7 +1165,55 @@
     });
 
     /* =========================================================================
-     * 7. PDF CROP STUDIO LOGIC (100% CLIENT-SIDE)
+     * 7. PASSWORD MODAL CONTROLS & EVENT LISTENERS
+     * ========================================================================= */
+    function promptForPdfPassword(reason) {
+      return new Promise((resolve, reject) => {
+        pendingPasswordCallback = { resolve, reject };
+        pdfPasswordErrorMessage.classList.add('hidden');
+        if (reason === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD) {
+          pdfPasswordErrorText.textContent = 'Incorrect password. Please try again.';
+          pdfPasswordErrorMessage.classList.remove('hidden');
+        }
+        pdfPasswordInput.value = '';
+        pdfPasswordModal.classList.remove('hidden');
+        setTimeout(() => pdfPasswordInput.focus(), 100);
+      });
+    }
+
+    pdfPasswordForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredPassword = pdfPasswordInput.value;
+      if (!enteredPassword) return;
+
+      appState.pdfPassword = enteredPassword;
+      pdfPasswordModal.classList.add('hidden');
+      if (pendingPasswordCallback && pendingPasswordCallback.resolve) {
+        pendingPasswordCallback.resolve(enteredPassword);
+      }
+    });
+
+    function dismissPdfPasswordPrompt() {
+      pdfPasswordModal.classList.add('hidden');
+      if (pendingPasswordCallback && pendingPasswordCallback.reject) {
+        pendingPasswordCallback.reject(new Error('Password prompt cancelled by user.'));
+      }
+      resetToUploadState();
+    }
+
+    closePdfPasswordModalBtn.addEventListener('click', dismissPdfPasswordPrompt);
+    cancelPdfPasswordBtn.addEventListener('click', dismissPdfPasswordPrompt);
+
+    togglePdfPasswordVisibilityBtn.addEventListener('click', () => {
+      const isPassword = pdfPasswordInput.type === 'password';
+      pdfPasswordInput.type = isPassword ? 'text' : 'password';
+      togglePdfPasswordVisibilityBtn.innerHTML = isPassword 
+        ? '<i class="fa-regular fa-eye-slash"></i>' 
+        : '<i class="fa-regular fa-eye"></i>';
+    });
+
+    /* =========================================================================
+     * 8. PDF CROP STUDIO LOGIC (100% CLIENT-SIDE & PASSWORD HANDLING)
      * ========================================================================= */
     const SECTION_PRESETS = {
       1: { start: 0.0, end: 33.333, label: 'Section 1 (Top 1/3)' },
@@ -1148,13 +1255,16 @@
       if (e.target.files?.[0]) handleIncomingPdf(e.target.files[0]);
     });
 
-    resetBtn.addEventListener('click', () => {
+    function resetToUploadState() {
       fileInput.value = '';
       uploadSection.classList.remove('hidden');
       workspaceSection.classList.add('hidden');
       appState.rawPdfBytes = null;
       appState.pdfDocument = null;
-    });
+      appState.pdfPassword = null;
+    }
+
+    resetBtn.addEventListener('click', resetToUploadState);
 
     function handleIncomingPdf(file) {
       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -1162,6 +1272,7 @@
         return;
       }
       appState.fileName = file.name;
+      appState.pdfPassword = null;
       const reader = new FileReader();
       reader.onload = async function(ev) {
         appState.rawPdfBytes = new Uint8Array(ev.target.result.slice(0));
@@ -1172,7 +1283,19 @@
 
     async function loadPdfDocument() {
       try {
-        const loadingTask = pdfjsLib.getDocument({ data: appState.rawPdfBytes.slice(0) });
+        const loadingTask = pdfjsLib.getDocument({ 
+          data: appState.rawPdfBytes.slice(0),
+          password: appState.pdfPassword || undefined
+        });
+
+        loadingTask.onPassword = function(updatePasswordCallback, reason) {
+          promptForPdfPassword(reason).then((enteredPass) => {
+            updatePasswordCallback(enteredPass);
+          }).catch((err) => {
+            console.warn(err);
+          });
+        };
+
         const pdf = await loadingTask.promise;
         appState.pdfDocument = pdf;
         appState.totalPages = pdf.numPages;
@@ -1189,7 +1312,12 @@
         showToast(`Loaded ${appState.fileName}`, 'success');
       } catch (err) {
         console.error(err);
-        showToast('Failed to load PDF.', 'error');
+        if (err.name === 'PasswordException') {
+          // Handled via onPassword callback
+          return;
+        }
+        showToast('Failed to load PDF: ' + (err.message || 'Corrupted or unreadable format'), 'error');
+        resetToUploadState();
       }
     }
 
@@ -1333,7 +1461,7 @@
     });
     window.addEventListener('mouseup', () => { activeDrag = null; });
 
-    // PDF Exporter with automated trial metering
+    // PDF Exporter with automated trial metering & password decryption
     downloadPdfBtn.addEventListener('click', async () => {
       if (!appState.rawPdfBytes) return;
       if (!canUserExport()) return;
@@ -1346,7 +1474,13 @@
         const bottomRatio = appState.cropBounds.endPercent / 100.0;
         const outputFormat = document.querySelector('input[name="outputFormat"]:checked').value;
 
-        const srcDoc = await PDFDocument.load(appState.rawPdfBytes.slice(0), { ignoreEncryption: true });
+        // Decrypt using provided password if protected
+        const loadOptions = { ignoreEncryption: true };
+        if (appState.pdfPassword) {
+          loadOptions.password = appState.pdfPassword;
+        }
+
+        const srcDoc = await PDFDocument.load(appState.rawPdfBytes.slice(0), loadOptions);
         const pages = srcDoc.getPages();
 
         if (outputFormat === 'cropbox_only') {
